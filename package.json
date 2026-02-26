@@ -1,0 +1,9 @@
+{
+  "name": "corpo-ativo-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site da academia Corpo Ativo com backend Node e SQLite",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

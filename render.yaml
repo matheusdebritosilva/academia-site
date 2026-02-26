@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: corpo-ativo-site
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    disk:
+      name: corpo-ativo-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
