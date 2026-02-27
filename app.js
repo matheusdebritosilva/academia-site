@@ -3,7 +3,8 @@
   plans: [],
   coaches: [],
   schedules: [],
-  leads: []
+  leads: [],
+  users: []
 };
 
 const editing = {
@@ -30,6 +31,7 @@ const adminStatus = document.getElementById("adminStatus");
 const memberArea = document.getElementById("conta");
 const memberWelcome = document.getElementById("memberWelcome");
 const memberDescription = document.getElementById("memberDescription");
+const memberDetails = document.getElementById("memberDetails");
 const contactForm = document.getElementById("contactForm");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
 const revealNodes = document.querySelectorAll("[data-reveal]");
@@ -123,8 +125,19 @@ function startScheduleEdit(schedule) {
   scheduleForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+function openAccountArea() {
+  if (!state.user) {
+    openModal();
+    return;
+  }
+
+  const target = state.user.role === "owner" ? adminPanel : memberArea;
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function setupUiEvents() {
   openLoginButton.addEventListener("click", openModal);
+  userPill?.addEventListener("click", openAccountArea);
   navLogoutButton.addEventListener("click", logout);
   logoutButton.addEventListener("click", logout);
   authModal.addEventListener("click", (event) => {
@@ -329,8 +342,8 @@ async function submitAuth(endpoint, body) {
     closeModal();
     if (user.role === "owner") {
       await loadAdminDashboard();
-      adminPanel.scrollIntoView({ behavior: "smooth" });
     }
+    openAccountArea();
   } catch (error) {
     authFeedback.textContent = error.message;
   }
@@ -340,6 +353,8 @@ async function logout() {
   await apiFetch("/api/auth/logout", { method: "POST" });
   state.user = null;
   state.leads = [];
+  state.users = [];
+  setAdminFeedback("");
   renderAuthState();
   renderAdminLists();
 }
@@ -370,6 +385,7 @@ async function loadAdminDashboard() {
   if (state.user?.role !== "owner") return;
   const data = await apiFetch("/api/admin/dashboard");
   state.leads = data.leads;
+  state.users = data.users;
   state.plans = data.plans;
   state.coaches = data.coaches;
   state.schedules = data.schedules;
@@ -420,10 +436,17 @@ function renderPublicLists() {
 }
 
 function renderAdminLists() {
-  document.getElementById("metricLeads").textContent = String(state.leads.length);
-  document.getElementById("metricPlans").textContent = String(state.plans.length);
-  document.getElementById("metricCoaches").textContent = String(state.coaches.length);
-  document.getElementById("metricSchedules").textContent = String(state.schedules.length);
+  const metricLeads = document.getElementById("metricLeads");
+  const metricPlans = document.getElementById("metricPlans");
+  const metricCoaches = document.getElementById("metricCoaches");
+  const metricSchedules = document.getElementById("metricSchedules");
+  const metricUsers = document.getElementById("metricUsers");
+
+  if (metricLeads) metricLeads.textContent = String(state.leads.length);
+  if (metricPlans) metricPlans.textContent = String(state.plans.length);
+  if (metricCoaches) metricCoaches.textContent = String(state.coaches.length);
+  if (metricSchedules) metricSchedules.textContent = String(state.schedules.length);
+  if (metricUsers) metricUsers.textContent = String(state.users.length);
 
   renderCollection(
     state.plans,
@@ -480,6 +503,24 @@ function renderAdminLists() {
   );
 
   renderCollection(
+    state.users,
+    document.getElementById("userList"),
+    (user) => `
+      <div class="admin-item user-item">
+        <div>
+          <strong>${user.name}</strong>
+          <p>${user.email}</p>
+        </div>
+        <div class="user-list-meta">
+          <span class="admin-status">${user.role === "owner" ? "Proprietário" : "Aluno"}</span>
+          <p>Criado em ${formatDate(user.createdAt)}</p>
+        </div>
+      </div>
+    `,
+    "Nenhum usuário cadastrado ainda."
+  );
+
+  renderCollection(
     state.leads,
     document.getElementById("leadList"),
     (lead) => `
@@ -505,6 +546,28 @@ function renderCollection(items, container, template, emptyMessage) {
   container.innerHTML = items.map(template).join("");
 }
 
+function renderMemberArea() {
+  const user = state.user;
+  if (!user || user.role === "owner") {
+    memberArea.classList.add("is-hidden");
+    if (memberDetails) {
+      memberDetails.innerHTML = "";
+    }
+    return;
+  }
+
+  memberArea.classList.remove("is-hidden");
+  memberArea.classList.add("is-visible");
+  memberWelcome.textContent = `Bem-vindo, ${user.name}.`;
+  memberDescription.textContent = "Sua conta está ativa. Use esta área para acompanhar seu acesso e manter seus dados de cadastro em dia.";
+  memberDetails.innerHTML = `
+    <div class="member-detail-row"><span>Nome</span><strong>${user.name}</strong></div>
+    <div class="member-detail-row"><span>E-mail</span><strong>${user.email}</strong></div>
+    <div class="member-detail-row"><span>Perfil</span><strong>${user.role === "owner" ? "Proprietário" : "Aluno"}</strong></div>
+    <div class="member-detail-row"><span>Status</span><strong>Conta ativa</strong></div>
+  `;
+}
+
 function renderAuthState() {
   const user = state.user;
   const isOwner = user?.role === "owner";
@@ -514,23 +577,19 @@ function renderAuthState() {
   dashboardLink.classList.toggle("is-hidden", !isOwner);
   openLoginButton.classList.toggle("is-hidden", isLogged);
   authNavGroup.classList.toggle("is-hidden", !isLogged);
-  memberArea.classList.toggle("is-hidden", !isLogged || isOwner);
   logoutButton.classList.toggle("is-hidden", !isOwner);
   adminStatus.textContent = isOwner ? "Conectado" : "Desconectado";
 
   if (isLogged) {
     userPill.textContent = user.role === "owner" ? "Proprietário" : user.name;
-  }
-
-  if (user && user.role !== "owner") {
-    memberWelcome.textContent = `Bem-vindo, ${user.name}.`;
-    memberDescription.textContent = "Sua conta foi criada com sucesso e já está conectada ao sistema da academia.";
-    memberArea.classList.add("is-visible");
+    userPill.title = isOwner ? "Ir para o painel do proprietário" : "Abrir gerenciamento da conta";
   }
 
   if (isOwner) {
     adminPanel.classList.add("is-visible");
   }
+
+  renderMemberArea();
 }
 
 function switchAuthTab(tabName) {

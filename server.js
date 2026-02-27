@@ -193,7 +193,8 @@ async function handleApi(request, response, url) {
         plans: await listPlans(),
         coaches: await listCoaches(),
         schedules: await listSchedules(),
-        leads: await listLeads()
+        leads: await listLeads(),
+        users: await listUsers()
       });
     }
 
@@ -420,6 +421,11 @@ async function listLeads() {
   return result.rows;
 }
 
+async function listUsers() {
+  const result = await pool.query("SELECT id, name, email, role, created_at AS \"createdAt\" FROM users ORDER BY id DESC");
+  return result.rows;
+}
+
 function parseCookies(request) {
   const raw = request.headers.cookie || "";
   return raw.split(";").reduce((cookies, pair) => {
@@ -477,3 +483,5 @@ async function requireOwner(request, response) {
   }
   return user;
 }
+
+

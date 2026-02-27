@@ -71,7 +71,7 @@
         <a href="#painel" id="dashboardLink" class="dashboard-link is-hidden">Painel</a>
         <button class="nav-login" id="openLogin" type="button">Login</button>
         <div class="auth-nav-group is-hidden" id="authNavGroup">
-          <span class="user-pill" id="userPill"></span>
+          <button class="user-pill" id="userPill" type="button"></button>
           <button class="nav-login" id="navLogout" type="button">Sair</button>
         </div>
       </div>
@@ -193,11 +193,20 @@
     <section class="member-area container is-hidden" id="conta" data-reveal>
       <div class="section-heading">
         <p class="eyebrow">Conta</p>
-        <h2>Sua área de aluno</h2>
+        <h2>Gerenciamento da sua conta</h2>
       </div>
-      <div class="member-card">
-        <strong id="memberWelcome">Bem-vindo.</strong>
-        <p id="memberDescription">Sua conta está ativa. Use o mesmo acesso para acompanhar novidades da academia.</p>
+      <div class="member-grid">
+        <article class="member-card">
+          <strong id="memberWelcome">Bem-vindo.</strong>
+          <p id="memberDescription">Sua conta está ativa. Use o mesmo acesso para acompanhar novidades da academia.</p>
+          <div class="member-actions">
+            <a class="button secondary" href="#contato">Falar com a academia</a>
+          </div>
+        </article>
+        <article class="member-card">
+          <h3>Resumo da conta</h3>
+          <div class="member-details" id="memberDetails"></div>
+        </article>
       </div>
     </section>
 
@@ -231,6 +240,10 @@
         <article class="metric-card">
           <span>Horários publicados</span>
           <strong id="metricSchedules">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Usuários cadastrados</span>
+          <strong id="metricUsers">0</strong>
         </article>
       </div>
 
@@ -282,8 +295,16 @@
 
         <article class="admin-card admin-card-wide">
           <div class="admin-card-header">
+            <h3>Usuários cadastrados</h3>
+            <p>Veja todas as contas criadas no site e acompanhe o tipo de acesso.</p>
+          </div>
+          <div class="admin-list" id="userList"></div>
+        </article>
+
+        <article class="admin-card admin-card-wide">
+          <div class="admin-card-header">
             <h3>Leads e contatos</h3>
-            <p>Contatos enviados pelo formulario do site.</p>
+            <p>Contatos enviados pelo formulário do site.</p>
           </div>
           <div class="admin-list" id="leadList"></div>
         </article>
@@ -312,6 +333,10 @@
   <script src="app.js"></script>
 </body>
 </html>
+
+
+
+
 
 
 
