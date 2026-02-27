@@ -233,11 +233,46 @@
       <p class="admin-feedback" id="adminFeedback"></p>
 
       <div class="admin-tabs" id="adminTabs">
-        <button class="admin-tab-button owner-only is-active" type="button" data-admin-tab="overview">Visão geral</button>
-        <button class="admin-tab-button owner-only" type="button" data-admin-tab="content">Site</button>
-        <button class="admin-tab-button owner-only" type="button" data-admin-tab="access">Acessos</button>
-        <button class="admin-tab-button" type="button" data-admin-tab="students">Alunos</button>
-        <button class="admin-tab-button owner-only" type="button" data-admin-tab="leads">Leads</button>
+        <button class="admin-tab-button owner-only is-active" type="button" data-admin-tab="overview">
+          <span class="admin-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 13h6V4H4zm0 7h6v-5H4zm10 0h6V11h-6zm0-16v5h6V4z"></path>
+            </svg>
+          </span>
+          <span class="admin-tab-label">Vis&atilde;o geral</span>
+        </button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="content">
+          <span class="admin-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 5h16v3H4zm0 5h10v3H4zm0 5h16v4H4z"></path>
+            </svg>
+          </span>
+          <span class="admin-tab-label">Site</span>
+        </button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="access">
+          <span class="admin-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 2a5 5 0 0 0-5 5v2H6a2 2 0 0 0-2 2v9h16v-9a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 7V7a3 3 0 1 1 6 0v2z"></path>
+            </svg>
+          </span>
+          <span class="admin-tab-label">Acessos</span>
+        </button>
+        <button class="admin-tab-button" type="button" data-admin-tab="students">
+          <span class="admin-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M16 11c1.66 0 2.99-1.57 2.99-3.5S17.66 4 16 4s-3 1.57-3 3.5S14.34 11 16 11zm-8 0c1.66 0 2.99-1.57 2.99-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.96 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"></path>
+            </svg>
+          </span>
+          <span class="admin-tab-label">Alunos</span>
+        </button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="leads">
+          <span class="admin-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v.4l8 5.2 8-5.2V6l-8 5-8-5z"></path>
+            </svg>
+          </span>
+          <span class="admin-tab-label">Leads</span>
+        </button>
       </div>
 
       <div class="metrics-grid metrics-grid-extended owner-only" data-admin-panel="overview">
@@ -381,6 +416,8 @@
   <script src="app.js"></script>
 </body>
 </html>
+
+
 
 
 
