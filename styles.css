@@ -188,7 +188,7 @@ textarea:focus {
 
 .nav-links {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
@@ -204,6 +204,12 @@ textarea:focus {
   border: 1px solid transparent;
   color: inherit;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.auth-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .user-pill {
@@ -730,22 +736,13 @@ h1 {
   }
 
   .nav-links {
-    justify-content: flex-start;
-  }
-
-  .hero {
-    min-height: auto;
-    padding-bottom: 50px;
-  }
-
-  .hero-content {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: calc(100vh - 88px);
-  max-width: 640px;
-  padding-top: 128px;
-  padding-bottom: 120px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  font-size: 0.92rem;
+  text-transform: uppercase;
 }
 
 @media (max-width: 640px) {
@@ -763,11 +760,14 @@ h1 {
     width: 100%;
   }
 
-  .training {
-    margin: 0 12px;
-    border-radius: 28px;
-  }
+  .auth-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
+
+
+
 
 
 

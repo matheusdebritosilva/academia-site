@@ -1,4 +1,4 @@
-const state = {
+﻿const state = {
   user: null,
   plans: [],
   coaches: [],
@@ -12,6 +12,7 @@ const authModal = document.getElementById("authModal");
 const openLoginButton = document.getElementById("openLogin");
 const navLogoutButton = document.getElementById("navLogout");
 const dashboardLink = document.getElementById("dashboardLink");
+const authNavGroup = document.getElementById("authNavGroup");
 const userPill = document.getElementById("userPill");
 const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
@@ -28,7 +29,7 @@ const revealNodes = document.querySelectorAll("[data-reveal]");
 const authTabs = Array.from(document.querySelectorAll("[data-auth-tab]"));
 
 initialize().catch(() => {
-  authFeedback.textContent = "Não foi possível carregar o sistema.";
+  authFeedback.textContent = "NÃ£o foi possÃ­vel carregar o sistema.";
 });
 
 async function initialize() {
@@ -224,7 +225,7 @@ function renderPublicLists() {
       <article class="plan-card ${plan.featured ? "featured" : ""}">
         ${plan.featured ? '<div class="tag">Mais escolhido</div>' : ""}
         <h3>${plan.name}</h3>
-        <p class="price">${plan.price}<span>/mês</span></p>
+        <p class="price">${plan.price}<span>/mÃªs</span></p>
         <p>${plan.description}</p>
         <a class="button ${plan.featured ? "primary" : "secondary"}" href="#contato">Assinar</a>
       </article>
@@ -254,7 +255,7 @@ function renderPublicLists() {
         <span>${schedule.details}</span>
       </article>
     `,
-    "Nenhum horário cadastrado."
+    "Nenhum horÃ¡rio cadastrado."
   );
 }
 
@@ -270,8 +271,8 @@ function renderAdminLists() {
     (plan) => `
       <div class="admin-item">
         <div>
-          <strong>${plan.name}${plan.featured ? " · Destaque" : ""}</strong>
-          <p>${plan.price} · ${plan.description}</p>
+          <strong>${plan.name}${plan.featured ? " Â· Destaque" : ""}</strong>
+          <p>${plan.price} Â· ${plan.description}</p>
         </div>
         <button class="button secondary item-delete" type="button" data-type="plan" data-id="${plan.id}">Remover</button>
       </div>
@@ -301,12 +302,12 @@ function renderAdminLists() {
       <div class="admin-item">
         <div>
           <strong>${schedule.day}</strong>
-          <p>${schedule.hours} · ${schedule.details}</p>
+          <p>${schedule.hours} Â· ${schedule.details}</p>
         </div>
         <button class="button secondary item-delete" type="button" data-type="schedule" data-id="${schedule.id}">Remover</button>
       </div>
     `,
-    "Nenhum horário cadastrado."
+    "Nenhum horÃ¡rio cadastrado."
   );
 
   renderCollection(
@@ -343,19 +344,18 @@ function renderAuthState() {
   adminPanel.classList.toggle("is-hidden", !isOwner);
   dashboardLink.classList.toggle("is-hidden", !isOwner);
   openLoginButton.classList.toggle("is-hidden", isLogged);
-  navLogoutButton.classList.toggle("is-hidden", !isLogged);
-  userPill.classList.toggle("is-hidden", !isLogged);
+  authNavGroup.classList.toggle("is-hidden", !isLogged);
   memberArea.classList.toggle("is-hidden", !isLogged || isOwner);
   logoutButton.classList.toggle("is-hidden", !isOwner);
   adminStatus.textContent = isOwner ? "Conectado" : "Desconectado";
 
   if (isLogged) {
-    userPill.textContent = user.role === "owner" ? "Proprietário" : user.name;
+    userPill.textContent = user.role === "owner" ? "ProprietÃ¡rio" : user.name;
   }
 
   if (user && user.role !== "owner") {
     memberWelcome.textContent = `Bem-vindo, ${user.name}.`;
-    memberDescription.textContent = "Sua conta foi criada com sucesso e já está conectada ao sistema da academia.";
+    memberDescription.textContent = "Sua conta foi criada com sucesso e jÃ¡ estÃ¡ conectada ao sistema da academia.";
     memberArea.classList.add("is-visible");
   }
 
@@ -446,7 +446,7 @@ async function apiFetch(url, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || "Erro na requisição.");
+    throw new Error(data.error || "Erro na requisiÃ§Ã£o.");
   }
   return data;
 }
@@ -458,3 +458,5 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
+
+
