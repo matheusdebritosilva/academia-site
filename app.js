@@ -44,6 +44,8 @@ const navLogoutButton = document.getElementById("navLogout");
 const dashboardLink = document.getElementById("dashboardLink");
 const authNavGroup = document.getElementById("authNavGroup");
 const userPill = document.getElementById("userPill");
+const navToggle = document.getElementById("navToggle");
+const navMenu = document.getElementById("navMenu");
 const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
 const authFeedback = document.getElementById("authFeedback");
@@ -193,7 +195,18 @@ function fillPermissionForm(userId) {
   permissionForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+function closeMobileMenu() {
+  topbar.classList.remove("menu-open");
+  navToggle?.setAttribute("aria-expanded", "false");
+}
+
+function toggleMobileMenu() {
+  const isOpen = topbar.classList.toggle("menu-open");
+  navToggle?.setAttribute("aria-expanded", String(isOpen));
+}
+
 function openAccountArea() {
+  closeMobileMenu();
   if (!state.user) {
     openModal();
     return;
@@ -205,9 +218,17 @@ function openAccountArea() {
 
 function setupUiEvents() {
   openLoginButton.addEventListener("click", openModal);
+  navToggle?.addEventListener("click", toggleMobileMenu);
+  navLinks.forEach((link) => link.addEventListener("click", closeMobileMenu));
+  dashboardLink?.addEventListener("click", closeMobileMenu);
   userPill?.addEventListener("click", openAccountArea);
   navLogoutButton.addEventListener("click", logout);
   logoutButton.addEventListener("click", logout);
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) {
+      closeMobileMenu();
+    }
+  });
   authModal.addEventListener("click", (event) => {
     if (event.target.hasAttribute("data-close-modal")) {
       closeModal();
@@ -911,4 +932,8 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
+
+
+
+
 
