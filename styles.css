@@ -135,13 +135,13 @@ textarea:focus {
   top: 18px;
   left: 50%;
   z-index: 30;
-  width: min(1120px, calc(100% - 40px));
+  width: min(1320px, calc(100% - 32px));
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 26px 24px;
+  gap: 16px;
+  padding: 22px 20px;
   background: rgba(20, 6, 6, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
@@ -163,8 +163,9 @@ textarea:focus {
 
 .brand {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
+  flex-shrink: 0;
   font-family: "Barlow Condensed", sans-serif;
   letter-spacing: 0.08em;
 }
@@ -198,7 +199,7 @@ textarea:focus {
 
 .nav-links a,
 .nav-login {
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid transparent;
@@ -761,13 +762,44 @@ h1 {
   }
 
   .auth-nav-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .training {
+    margin: 0 12px;
+    border-radius: 28px;
+  }
 }
 
+/* Desktop topbar override */
+.topbar {
+  width: min(1320px, calc(100% - 32px));
+  gap: 16px;
+  padding: 22px 20px;
+}
 
+.brand {
+  gap: 12px;
+  flex-shrink: 0;
+}
 
+.nav-links {
+  gap: 8px;
+  flex: 1;
+  flex-wrap: nowrap;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
 
+.nav-links a,
+.nav-login {
+  padding: 10px 12px;
+}
 
-
+.auth-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}

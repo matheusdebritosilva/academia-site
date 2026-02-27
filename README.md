@@ -35,7 +35,7 @@ git push origin main
 3. Escolha `Blueprint`
 4. Conecte seu GitHub
 5. Selecione o repositório deste projeto
-6. Confirme a criação
+6. Confirme a criacao
 
 O Render vai ler o arquivo `render.yaml` automaticamente e criar:
 
@@ -54,3 +54,4 @@ O Render vai ler o arquivo `render.yaml` automaticamente e criar:
 - O banco PostgreSQL e criado automaticamente no primeiro deploy.
 - O proprietario padrao tambem e criado automaticamente no primeiro start.
 - Se quiser trocar a senha inicial do dono, faca isso no arquivo `server.js` antes do deploy.
+
