@@ -18,6 +18,7 @@ const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
 const authFeedback = document.getElementById("authFeedback");
 const logoutButton = document.getElementById("logoutButton");
+const adminFeedback = document.getElementById("adminFeedback");
 const adminPanel = document.getElementById("painel");
 const adminStatus = document.getElementById("adminStatus");
 const memberArea = document.getElementById("conta");
@@ -38,6 +39,12 @@ async function initialize() {
   updateTopbarState();
   setupSectionTracking();
   setupRevealAnimations();
+}
+
+function setAdminFeedback(message, isSuccess = false) {
+  if (!adminFeedback) return;
+  adminFeedback.textContent = message;
+  adminFeedback.classList.toggle("is-success", isSuccess);
 }
 
 function setupUiEvents() {
@@ -458,6 +465,8 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
+
+
 
 
 

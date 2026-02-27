@@ -803,3 +803,14 @@ h1 {
   gap: 8px;
   flex-shrink: 0;
 }
+
+.admin-feedback {
+  min-height: 24px;
+  margin: 0 0 20px;
+  color: #ff8d8d;
+}
+
+.admin-feedback.is-success {
+  color: #34d17d;
+}
+
