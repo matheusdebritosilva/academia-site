@@ -1,69 +1,23 @@
-const http = require("node:http");
+﻿const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { URL } = require("node:url");
-const { DatabaseSync } = require("node:sqlite");
+const { Pool } = require("pg");
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
-const DB_PATH = path.join(DATA_DIR, "corpo-ativo.db");
 const SESSION_COOKIE = "corpo_ativo_session";
+const DATABASE_URL = process.env.DATABASE_URL;
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!DATABASE_URL) {
+  throw new Error("DATABASE_URL nao configurada.");
+}
 
-const db = new DatabaseSync(DB_PATH);
-db.exec(`
-  PRAGMA journal_mode = WAL;
-
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'member',
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT NOT NULL UNIQUE,
-    user_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS plans (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    price TEXT NOT NULL,
-    description TEXT NOT NULL,
-    featured INTEGER NOT NULL DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS coaches (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    role TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS schedules (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    day TEXT NOT NULL,
-    hours TEXT NOT NULL,
-    details TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-seedDatabase();
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes("render.com") ? { rejectUnauthorized: false } : false
+});
 
 const publicFiles = {
   "/": "index.html",
@@ -72,31 +26,87 @@ const publicFiles = {
   "/app.js": "app.js"
 };
 
-const server = http.createServer(async (request, response) => {
-  try {
-    const url = new URL(request.url, `http://${request.headers.host}`);
+async function main() {
+  await initializeDatabase();
 
-    if (url.pathname.startsWith("/api/")) {
-      await handleApi(request, response, url);
-      return;
+  const server = http.createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+
+      if (url.pathname.startsWith("/api/")) {
+        await handleApi(request, response, url);
+        return;
+      }
+
+      if (publicFiles[url.pathname]) {
+        return serveStatic(response, path.join(ROOT, publicFiles[url.pathname]));
+      }
+
+      sendJson(response, 404, { error: "Rota nao encontrada." });
+    } catch {
+      sendJson(response, 500, { error: "Erro interno no servidor." });
     }
+  });
 
-    if (publicFiles[url.pathname]) {
-      serveStatic(response, path.join(ROOT, publicFiles[url.pathname]));
-      return;
-    }
+  server.listen(PORT, () => {
+    console.log(`Servidor iniciado em http://localhost:${PORT}`);
+  });
+}
 
-    response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ error: "Rota não encontrada." }));
-  } catch (error) {
-    response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ error: "Erro interno no servidor." }));
-  }
+main().catch((error) => {
+  console.error("Falha ao iniciar servidor:", error);
+  process.exit(1);
 });
 
-server.listen(PORT, () => {
-  console.log(`Servidor iniciado em http://localhost:${PORT}`);
-});
+async function initializeDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS plans (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      price TEXT NOT NULL,
+      description TEXT NOT NULL,
+      featured BOOLEAN NOT NULL DEFAULT FALSE
+    );
+
+    CREATE TABLE IF NOT EXISTS coaches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS schedules (
+      id SERIAL PRIMARY KEY,
+      day TEXT NOT NULL,
+      hours TEXT NOT NULL,
+      details TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await seedDatabase();
+}
 
 async function handleApi(request, response, url) {
   try {
@@ -104,9 +114,9 @@ async function handleApi(request, response, url) {
 
     if (method === "GET" && url.pathname === "/api/public-data") {
       return sendJson(response, 200, {
-        plans: listPlans(),
-        coaches: listCoaches(),
-        schedules: listSchedules()
+        plans: await listPlans(),
+        coaches: await listCoaches(),
+        schedules: await listSchedules()
       });
     }
 
@@ -115,18 +125,19 @@ async function handleApi(request, response, url) {
       validateFields(body, ["name", "email", "password"]);
 
       const email = String(body.email).trim().toLowerCase();
-      const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-      if (existing) {
-        return sendJson(response, 409, { error: "Este e-mail já está cadastrado." });
+      const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+      if (existing.rowCount) {
+        return sendJson(response, 409, { error: "Este e-mail ja esta cadastrado." });
       }
 
       const passwordHash = hashPassword(body.password);
-      const result = db
-        .prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'member')")
-        .run(String(body.name).trim(), email, passwordHash);
+      const result = await pool.query(
+        "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'member') RETURNING id, name, email, role",
+        [String(body.name).trim(), email, passwordHash]
+      );
 
-      const user = db.prepare("SELECT id, name, email, role FROM users WHERE id = ?").get(result.lastInsertRowid);
-      createSession(response, user.id);
+      const user = result.rows[0];
+      await createSession(response, user.id);
       return sendJson(response, 201, { user });
     }
 
@@ -135,26 +146,30 @@ async function handleApi(request, response, url) {
       validateFields(body, ["email", "password"]);
 
       const email = String(body.email).trim().toLowerCase();
-      const user = db.prepare("SELECT id, name, email, role, password_hash FROM users WHERE email = ?").get(email);
+      const result = await pool.query(
+        "SELECT id, name, email, role, password_hash FROM users WHERE email = $1",
+        [email]
+      );
+      const user = result.rows[0];
       if (!user || !verifyPassword(body.password, user.password_hash)) {
-        return sendJson(response, 401, { error: "E-mail ou senha inválidos." });
+        return sendJson(response, 401, { error: "E-mail ou senha invalidos." });
       }
 
-      createSession(response, user.id);
+      await createSession(response, user.id);
       return sendJson(response, 200, { user: sanitizeUser(user) });
     }
 
     if (method === "POST" && url.pathname === "/api/auth/logout") {
-      const session = getSession(request);
+      const session = await getSession(request);
       if (session) {
-        db.prepare("DELETE FROM sessions WHERE token = ?").run(session.token);
+        await pool.query("DELETE FROM sessions WHERE token = $1", [session.token]);
       }
       clearSession(response);
       return sendJson(response, 200, { success: true });
     }
 
     if (method === "GET" && url.pathname === "/api/auth/me") {
-      const sessionUser = requireUser(request, response);
+      const sessionUser = await requireUser(request, response);
       if (!sessionUser) return;
       return sendJson(response, 200, { user: sanitizeUser(sessionUser) });
     }
@@ -162,91 +177,86 @@ async function handleApi(request, response, url) {
     if (method === "POST" && url.pathname === "/api/leads") {
       const body = await readJsonBody(request);
       validateFields(body, ["name", "email"]);
-      db.prepare("INSERT INTO leads (name, email) VALUES (?, ?)").run(
+      await pool.query("INSERT INTO leads (name, email) VALUES ($1, $2)", [
         String(body.name).trim(),
         String(body.email).trim().toLowerCase()
-      );
+      ]);
       return sendJson(response, 201, { success: true });
     }
 
-    const owner = requireOwner(request, response);
+    const owner = await requireOwner(request, response);
     if (!owner) return;
 
     if (method === "GET" && url.pathname === "/api/admin/dashboard") {
       return sendJson(response, 200, {
         user: sanitizeUser(owner),
-        plans: listPlans(),
-        coaches: listCoaches(),
-        schedules: listSchedules(),
-        leads: listLeads()
+        plans: await listPlans(),
+        coaches: await listCoaches(),
+        schedules: await listSchedules(),
+        leads: await listLeads()
       });
     }
 
     if (method === "POST" && url.pathname === "/api/admin/plans") {
       const body = await readJsonBody(request);
       validateFields(body, ["name", "price", "description"]);
-      const featured = body.featured ? 1 : 0;
+      const featured = Boolean(body.featured);
       if (featured) {
-        db.prepare("UPDATE plans SET featured = 0").run();
+        await pool.query("UPDATE plans SET featured = FALSE");
       }
-      db.prepare("INSERT INTO plans (name, price, description, featured) VALUES (?, ?, ?, ?)").run(
-        String(body.name).trim(),
-        String(body.price).trim(),
-        String(body.description).trim(),
-        featured
+      await pool.query(
+        "INSERT INTO plans (name, price, description, featured) VALUES ($1, $2, $3, $4)",
+        [String(body.name).trim(), String(body.price).trim(), String(body.description).trim(), featured]
       );
-      return sendJson(response, 201, { plans: listPlans() });
+      return sendJson(response, 201, { plans: await listPlans() });
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/plans/")) {
-      const id = Number(url.pathname.split("/").pop());
-      db.prepare("DELETE FROM plans WHERE id = ?").run(id);
-      return sendJson(response, 200, { plans: listPlans() });
+      await pool.query("DELETE FROM plans WHERE id = $1", [Number(url.pathname.split("/").pop())]);
+      return sendJson(response, 200, { plans: await listPlans() });
     }
 
     if (method === "POST" && url.pathname === "/api/admin/coaches") {
       const body = await readJsonBody(request);
       validateFields(body, ["name", "role"]);
-      db.prepare("INSERT INTO coaches (name, role) VALUES (?, ?)").run(
+      await pool.query("INSERT INTO coaches (name, role) VALUES ($1, $2)", [
         String(body.name).trim(),
         String(body.role).trim()
-      );
-      return sendJson(response, 201, { coaches: listCoaches() });
+      ]);
+      return sendJson(response, 201, { coaches: await listCoaches() });
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/coaches/")) {
-      const id = Number(url.pathname.split("/").pop());
-      db.prepare("DELETE FROM coaches WHERE id = ?").run(id);
-      return sendJson(response, 200, { coaches: listCoaches() });
+      await pool.query("DELETE FROM coaches WHERE id = $1", [Number(url.pathname.split("/").pop())]);
+      return sendJson(response, 200, { coaches: await listCoaches() });
     }
 
     if (method === "POST" && url.pathname === "/api/admin/schedules") {
       const body = await readJsonBody(request);
       validateFields(body, ["day", "hours", "details"]);
-      db.prepare("INSERT INTO schedules (day, hours, details) VALUES (?, ?, ?)").run(
+      await pool.query("INSERT INTO schedules (day, hours, details) VALUES ($1, $2, $3)", [
         String(body.day).trim(),
         String(body.hours).trim(),
         String(body.details).trim()
-      );
-      return sendJson(response, 201, { schedules: listSchedules() });
+      ]);
+      return sendJson(response, 201, { schedules: await listSchedules() });
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/schedules/")) {
-      const id = Number(url.pathname.split("/").pop());
-      db.prepare("DELETE FROM schedules WHERE id = ?").run(id);
-      return sendJson(response, 200, { schedules: listSchedules() });
+      await pool.query("DELETE FROM schedules WHERE id = $1", [Number(url.pathname.split("/").pop())]);
+      return sendJson(response, 200, { schedules: await listSchedules() });
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/leads/")) {
-      const id = Number(url.pathname.split("/").pop());
-      db.prepare("DELETE FROM leads WHERE id = ?").run(id);
-      return sendJson(response, 200, { leads: listLeads() });
+      await pool.query("DELETE FROM leads WHERE id = $1", [Number(url.pathname.split("/").pop())]);
+      return sendJson(response, 200, { leads: await listLeads() });
     }
 
-    return sendJson(response, 404, { error: "Rota de API não encontrada." });
+    return sendJson(response, 404, { error: "Rota de API nao encontrada." });
   } catch (error) {
-    const status = error.message.includes("Campo obrigatório") || error.message.includes("JSON inválido") ? 400 : 500;
-    return sendJson(response, status, { error: status === 400 ? error.message : "Erro interno no servidor." });
+    const message = error.message || "";
+    const status = message.includes("Campo obrigatorio") || message.includes("JSON invalido") ? 400 : 500;
+    return sendJson(response, status, { error: status === 400 ? message : "Erro interno no servidor." });
   }
 }
 
@@ -273,15 +283,13 @@ function readJsonBody(request) {
     let raw = "";
     request.on("data", (chunk) => {
       raw += chunk;
-      if (raw.length > 1_000_000) {
-        reject(new Error("Body muito grande."));
-      }
+      if (raw.length > 1000000) reject(new Error("Body muito grande."));
     });
     request.on("end", () => {
       try {
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
-        reject(new Error("JSON inválido."));
+        reject(new Error("JSON invalido."));
       }
     });
     request.on("error", reject);
@@ -291,7 +299,7 @@ function readJsonBody(request) {
 function validateFields(body, fields) {
   for (const field of fields) {
     if (!body[field] || !String(body[field]).trim()) {
-      throw new Error(`Campo obrigatório ausente: ${field}`);
+      throw new Error(`Campo obrigatorio ausente: ${field}`);
     }
   }
 }
@@ -308,55 +316,70 @@ function verifyPassword(password, passwordHash) {
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(originalHash, "hex"));
 }
 
-function seedDatabase() {
-  const ownerExists = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@corpoativo.com");
-  if (!ownerExists) {
-    db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'owner')").run(
-      "Administrador Corpo Ativo",
-      "admin@corpoativo.com",
-      hashPassword("corpo123")
+async function seedDatabase() {
+  const ownerExists = await pool.query("SELECT id FROM users WHERE email = $1", ["admin@corpoativo.com"]);
+  if (!ownerExists.rowCount) {
+    await pool.query(
+      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'owner')",
+      ["Administrador Corpo Ativo", "admin@corpoativo.com", hashPassword("corpo123")]
     );
   }
 
-  const countPlans = db.prepare("SELECT COUNT(*) AS total FROM plans").get().total;
-  if (!countPlans) {
-    db.prepare("INSERT INTO plans (name, price, description, featured) VALUES (?, ?, ?, ?)").run("Start", "R$ 89", "Acesso à musculação e avaliação inicial.", 0);
-    db.prepare("INSERT INTO plans (name, price, description, featured) VALUES (?, ?, ?, ?)").run("Black", "R$ 149", "Musculação, funcional, consultoria e acesso 24 horas.", 1);
-    db.prepare("INSERT INTO plans (name, price, description, featured) VALUES (?, ?, ?, ?)").run("Elite", "R$ 219", "Treino personalizado, recovery e acompanhamento premium.", 0);
+  const plansCount = await pool.query("SELECT COUNT(*)::int AS total FROM plans");
+  if (!plansCount.rows[0].total) {
+    await pool.query(
+      "INSERT INTO plans (name, price, description, featured) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12)",
+      [
+        "Start", "R$ 89", "Acesso a musculacao e avaliacao inicial.", false,
+        "Black", "R$ 149", "Musculacao, funcional, consultoria e acesso 24 horas.", true,
+        "Elite", "R$ 219", "Treino personalizado, recovery e acompanhamento premium.", false
+      ]
+    );
   }
 
-  const countCoaches = db.prepare("SELECT COUNT(*) AS total FROM coaches").get().total;
-  if (!countCoaches) {
-    db.prepare("INSERT INTO coaches (name, role) VALUES (?, ?)").run("Lucas Mendes", "Hipertrofia e força");
-    db.prepare("INSERT INTO coaches (name, role) VALUES (?, ?)").run("Ana Ribeiro", "Funcional e definição");
-    db.prepare("INSERT INTO coaches (name, role) VALUES (?, ?)").run("Bruno Costa", "Performance e condicionamento");
+  const coachesCount = await pool.query("SELECT COUNT(*)::int AS total FROM coaches");
+  if (!coachesCount.rows[0].total) {
+    await pool.query(
+      "INSERT INTO coaches (name, role) VALUES ($1, $2), ($3, $4), ($5, $6)",
+      [
+        "Lucas Mendes", "Hipertrofia e forca",
+        "Ana Ribeiro", "Funcional e definicao",
+        "Bruno Costa", "Performance e condicionamento"
+      ]
+    );
   }
 
-  const countSchedules = db.prepare("SELECT COUNT(*) AS total FROM schedules").get().total;
-  if (!countSchedules) {
-    db.prepare("INSERT INTO schedules (day, hours, details) VALUES (?, ?, ?)").run("Seg a Sex", "05:00 às 23:00", "Musculação, cardio e funcional");
-    db.prepare("INSERT INTO schedules (day, hours, details) VALUES (?, ?, ?)").run("Sábado", "08:00 às 18:00", "Aulas especiais e treino livre");
-    db.prepare("INSERT INTO schedules (day, hours, details) VALUES (?, ?, ?)").run("Domingo", "08:00 às 14:00", "Recovery, cardio e mobilidade");
+  const schedulesCount = await pool.query("SELECT COUNT(*)::int AS total FROM schedules");
+  if (!schedulesCount.rows[0].total) {
+    await pool.query(
+      "INSERT INTO schedules (day, hours, details) VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)",
+      [
+        "Seg a Sex", "05:00 as 23:00", "Musculacao, cardio e funcional",
+        "Sabado", "08:00 as 18:00", "Aulas especiais e treino livre",
+        "Domingo", "08:00 as 14:00", "Recovery, cardio e mobilidade"
+      ]
+    );
   }
 }
 
-function listPlans() {
-  return db.prepare("SELECT id, name, price, description, featured FROM plans ORDER BY featured DESC, id ASC").all().map((row) => ({
-    ...row,
-    featured: Boolean(row.featured)
-  }));
+async function listPlans() {
+  const result = await pool.query("SELECT id, name, price, description, featured FROM plans ORDER BY featured DESC, id ASC");
+  return result.rows;
 }
 
-function listCoaches() {
-  return db.prepare("SELECT id, name, role FROM coaches ORDER BY id ASC").all();
+async function listCoaches() {
+  const result = await pool.query("SELECT id, name, role FROM coaches ORDER BY id ASC");
+  return result.rows;
 }
 
-function listSchedules() {
-  return db.prepare("SELECT id, day, hours, details FROM schedules ORDER BY id ASC").all();
+async function listSchedules() {
+  const result = await pool.query("SELECT id, day, hours, details FROM schedules ORDER BY id ASC");
+  return result.rows;
 }
 
-function listLeads() {
-  return db.prepare("SELECT id, name, email, created_at AS createdAt FROM leads ORDER BY id DESC").all();
+async function listLeads() {
+  const result = await pool.query("SELECT id, name, email, created_at AS \"createdAt\" FROM leads ORDER BY id DESC");
+  return result.rows;
 }
 
 function parseCookies(request) {
@@ -369,21 +392,24 @@ function parseCookies(request) {
   }, {});
 }
 
-function getSession(request) {
+async function getSession(request) {
   const cookies = parseCookies(request);
   const token = cookies[SESSION_COOKIE];
   if (!token) return null;
-  return db.prepare(`
-    SELECT sessions.token, users.id, users.name, users.email, users.role
-    FROM sessions
-    JOIN users ON users.id = sessions.user_id
-    WHERE sessions.token = ?
-  `).get(token);
+
+  const result = await pool.query(
+    `SELECT sessions.token, users.id, users.name, users.email, users.role
+     FROM sessions
+     JOIN users ON users.id = sessions.user_id
+     WHERE sessions.token = $1`,
+    [token]
+  );
+  return result.rows[0] || null;
 }
 
-function createSession(response, userId) {
+async function createSession(response, userId) {
   const token = crypto.randomBytes(32).toString("hex");
-  db.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)").run(token, userId);
+  await pool.query("INSERT INTO sessions (token, user_id) VALUES ($1, $2)", [token, userId]);
   response.setHeader("Set-Cookie", `${SESSION_COOKIE}=${token}; HttpOnly; Path=/; SameSite=Lax`);
 }
 
@@ -392,28 +418,23 @@ function clearSession(response) {
 }
 
 function sanitizeUser(user) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role
-  };
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
 }
 
-function requireUser(request, response) {
-  const session = getSession(request);
+async function requireUser(request, response) {
+  const session = await getSession(request);
   if (!session) {
-    sendJson(response, 401, { error: "Faça login para continuar." });
+    sendJson(response, 401, { error: "Faca login para continuar." });
     return null;
   }
   return session;
 }
 
-function requireOwner(request, response) {
-  const user = requireUser(request, response);
+async function requireOwner(request, response) {
+  const user = await requireUser(request, response);
   if (!user) return null;
   if (user.role !== "owner") {
-    sendJson(response, 403, { error: "Acesso restrito ao proprietário." });
+    sendJson(response, 403, { error: "Acesso restrito ao proprietario." });
     return null;
   }
   return user;

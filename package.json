@@ -1,8 +1,11 @@
-{
+﻿{
   "name": "corpo-ativo-site",
   "version": "1.0.0",
   "private": true,
-  "description": "Site da academia Corpo Ativo com backend Node e SQLite",
+  "description": "Site da academia Corpo Ativo com backend Node e PostgreSQL",
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
   "scripts": {
     "start": "node server.js"
   }

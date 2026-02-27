@@ -1,16 +1,19 @@
-# Corpo Ativo
+﻿# Corpo Ativo
 
-Site da academia Corpo Ativo com frontend estático, backend Node e banco SQLite.
+Site da academia Corpo Ativo com frontend estatico, backend Node e banco PostgreSQL.
 
 ## Rodar localmente
 
+Voce precisa de uma variavel `DATABASE_URL` apontando para um PostgreSQL valido.
+
 ```bash
+npm install
 npm start
 ```
 
 Abra `http://localhost:3000`.
 
-## Login inicial do proprietário
+## Login inicial do proprietario
 
 - E-mail: `admin@corpoativo.com`
 - Senha: `corpo123`
@@ -19,15 +22,10 @@ Abra `http://localhost:3000`.
 
 ### 1. Subir para o GitHub
 
-No terminal, dentro da pasta do projeto:
-
 ```bash
-git init
 git add .
-git commit -m "Initial deploy"
-git branch -M main
-git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
-git push -u origin main
+git commit -m "Migrate to PostgreSQL"
+git push origin main
 ```
 
 ### 2. Criar o deploy no Render
@@ -39,17 +37,20 @@ git push -u origin main
 5. Selecione o repositório deste projeto
 6. Confirme a criação
 
-O Render vai ler o arquivo `render.yaml` automaticamente.
+O Render vai ler o arquivo `render.yaml` automaticamente e criar:
+
+- 1 servico web Node
+- 1 banco PostgreSQL free
 
 ## O que o Render vai usar
 
 - Build Command: `npm install`
 - Start Command: `npm start`
 - Runtime: `Node`
-- Disco persistente para o SQLite em `/opt/render/project/src/data`
+- Banco PostgreSQL vinculado pela variavel `DATABASE_URL`
 
-## Observações
+## Observacoes
 
-- O banco SQLite não foi versionado no GitHub. Ele será criado automaticamente no primeiro deploy.
-- O proprietário padrão também é criado automaticamente no primeiro start.
-- Se quiser trocar a senha inicial do dono, faça isso no arquivo `server.js` antes do deploy.
+- O banco PostgreSQL e criado automaticamente no primeiro deploy.
+- O proprietario padrao tambem e criado automaticamente no primeiro start.
+- Se quiser trocar a senha inicial do dono, faca isso no arquivo `server.js` antes do deploy.
