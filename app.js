@@ -1197,3 +1197,59 @@ function renderAuthState() {
   renderMemberArea();
 }
 
+
+function setupSectionTracking() {
+  function getTrackedSections() {
+    return navLinks
+      .filter((link) => !link.classList.contains("is-hidden"))
+      .map((link) => ({
+        link,
+        section: document.querySelector(link.getAttribute("href"))
+      }))
+      .filter((item) => item.section && !item.section.classList.contains("is-hidden"));
+  }
+
+  function setActiveNavLink(sectionId) {
+    navLinks.forEach((link) => {
+      link.classList.toggle("is-active", link.getAttribute("href") === `#${sectionId}`);
+    });
+  }
+
+  let ticking = false;
+
+  function syncActiveSection() {
+    const trackedSections = getTrackedSections();
+    if (!trackedSections.length) {
+      ticking = false;
+      return;
+    }
+
+    const offset = window.scrollY + (topbar ? topbar.offsetHeight + 56 : 160);
+    let activeItem = trackedSections[0];
+
+    trackedSections.forEach((item) => {
+      if (offset >= item.section.offsetTop) {
+        activeItem = item;
+      }
+    });
+
+    const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 12;
+    if (nearBottom) {
+      activeItem = trackedSections[trackedSections.length - 1];
+    }
+
+    setActiveNavLink(activeItem.section.id);
+    ticking = false;
+  }
+
+  function requestSync() {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(syncActiveSection);
+  }
+
+  window.addEventListener("scroll", requestSync, { passive: true });
+  window.addEventListener("resize", requestSync);
+  requestSync();
+}
+
