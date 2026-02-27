@@ -232,7 +232,15 @@
 
       <p class="admin-feedback" id="adminFeedback"></p>
 
-      <div class="metrics-grid metrics-grid-extended">
+      <div class="admin-tabs" id="adminTabs">
+        <button class="admin-tab-button owner-only is-active" type="button" data-admin-tab="overview">Visão geral</button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="content">Site</button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="access">Acessos</button>
+        <button class="admin-tab-button" type="button" data-admin-tab="students">Alunos</button>
+        <button class="admin-tab-button owner-only" type="button" data-admin-tab="leads">Leads</button>
+      </div>
+
+      <div class="metrics-grid metrics-grid-extended owner-only" data-admin-panel="overview">
         <article class="metric-card">
           <span>Cadastros no mês</span>
           <strong id="metricNewUsers">0</strong>
@@ -373,6 +381,8 @@
   <script src="app.js"></script>
 </body>
 </html>
+
+
 
 
 

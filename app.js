@@ -989,3 +989,211 @@ function renderAuthState() {
 
   renderMemberArea();
 }
+
+function getDefaultAdminTab() {
+  return state.user?.role === "staff" ? "students" : "overview";
+}
+
+function setAdminTab(tabName) {
+  const activeTab = state.user?.role === "staff" ? "students" : tabName;
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.adminTab === activeTab);
+  });
+
+  document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
+    const shouldShow = panel.dataset.adminPanel === activeTab;
+    panel.classList.toggle("is-hidden", !shouldShow);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const tabButton = event.target.closest("[data-admin-tab]");
+  if (!tabButton) return;
+  setAdminTab(tabButton.dataset.adminTab);
+});
+
+async function loadAdminDashboard() {
+  if (!["owner", "staff"].includes(state.user?.role)) return;
+  const data = await apiFetch("/api/admin/dashboard");
+  state.leads = data.leads;
+  state.users = data.users;
+  state.students = data.students;
+  state.metrics = data.metrics;
+  state.plans = data.plans;
+  state.coaches = data.coaches;
+  state.schedules = data.schedules;
+  renderPublicLists();
+  renderAdminLists();
+  setAdminTab(getDefaultAdminTab());
+}
+
+function renderAdminLists() {
+  const metricNewUsers = document.getElementById("metricNewUsers");
+  const metricRecentLeads = document.getElementById("metricRecentLeads");
+  const metricActiveStudents = document.getElementById("metricActiveStudents");
+  const metricTopPlan = document.getElementById("metricTopPlan");
+  const metricUsers = document.getElementById("metricUsers");
+  const metricStaff = document.getElementById("metricStaff");
+  const isOwner = state.user?.role === "owner";
+
+  if (metricNewUsers) metricNewUsers.textContent = String(state.metrics.newUsersThisMonth || 0);
+  if (metricRecentLeads) metricRecentLeads.textContent = String(state.metrics.recentLeads || 0);
+  if (metricActiveStudents) metricActiveStudents.textContent = String(state.metrics.activeStudents || 0);
+  if (metricTopPlan) metricTopPlan.textContent = state.metrics.topPlan || "Sem dados";
+  if (metricUsers) metricUsers.textContent = String(state.metrics.totalUsers || state.users.length);
+  if (metricStaff) metricStaff.textContent = String(state.metrics.staffCount || 0);
+
+  syncAdminSelects();
+
+  renderCollection(
+    state.plans,
+    document.getElementById("planAdminList"),
+    (plan) => `
+      <div class="admin-item">
+        <div>
+          <strong>${plan.name}${plan.featured ? " · Destaque" : ""}</strong>
+          <p>${plan.price} · ${plan.description}</p>
+        </div>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="plan" data-edit-id="${plan.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="plan" data-id="${plan.id}">Remover</button>
+        </div>
+      </div>
+    `,
+    "Nenhum plano cadastrado."
+  );
+
+  renderCollection(
+    state.coaches,
+    document.getElementById("coachAdminList"),
+    (coach) => `
+      <div class="admin-item">
+        <div>
+          <strong>${coach.name}</strong>
+          <p>${coach.role}</p>
+        </div>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="coach" data-edit-id="${coach.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="coach" data-id="${coach.id}">Remover</button>
+        </div>
+      </div>
+    `,
+    "Nenhum coach cadastrado."
+  );
+
+  renderCollection(
+    state.schedules,
+    document.getElementById("scheduleAdminList"),
+    (schedule) => `
+      <div class="admin-item">
+        <div>
+          <strong>${schedule.day}</strong>
+          <p>${schedule.hours} · ${schedule.details}</p>
+        </div>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="schedule" data-edit-id="${schedule.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="schedule" data-id="${schedule.id}">Remover</button>
+        </div>
+      </div>
+    `,
+    "Nenhum horário cadastrado."
+  );
+
+  renderCollection(
+    state.users,
+    document.getElementById("userList"),
+    (user) => `
+      <div class="admin-item user-item">
+        <div>
+          <strong>${user.name}</strong>
+          <p>${user.email}</p>
+          <p>${user.gymStatus ? `${statusLabel(user.gymStatus)} · ${user.membershipPlan || "Sem plano"}` : "Sem matrícula ativa"}</p>
+        </div>
+        <div class="user-list-meta">
+          <span class="admin-status">${roleLabel(user.role)}</span>
+          <p>Criado em ${formatDate(user.createdAt)}</p>
+          ${isOwner && user.role !== "owner" ? `<button class="button secondary item-edit" type="button" data-role-id="${user.id}">Ajustar acesso</button>` : ""}
+        </div>
+      </div>
+    `,
+    "Nenhum usuário cadastrado ainda."
+  );
+
+  renderCollection(
+    state.students,
+    document.getElementById("studentList"),
+    (student) => `
+      <div class="admin-item user-item">
+        <div>
+          <strong>${student.name}</strong>
+          <p>${student.membershipPlan || "Sem plano"}</p>
+          <p>${student.notes || "Sem observações internas."}</p>
+        </div>
+        <div class="user-list-meta">
+          <span class="admin-status status-${student.gymStatus}">${statusLabel(student.gymStatus)}</span>
+          <p>${student.email}</p>
+          <div class="admin-item-actions">
+            <button class="button secondary item-edit" type="button" data-edit-type="student" data-edit-id="${student.id}">Editar aluno</button>
+            ${isOwner ? `<button class="button secondary item-delete" type="button" data-type="student" data-id="${student.id}">Remover</button>` : ""}
+          </div>
+        </div>
+      </div>
+    `,
+    "Nenhum aluno gerenciado ainda."
+  );
+
+  renderCollection(
+    state.leads,
+    document.getElementById("leadList"),
+    (lead) => `
+      <div class="lead-item">
+        <div>
+          <strong>${lead.name}</strong>
+          <p>${lead.email}</p>
+          <p>Enviado em ${formatDate(lead.createdAt)}</p>
+        </div>
+        <button class="button secondary item-delete" type="button" data-type="lead" data-id="${lead.id}">Remover</button>
+      </div>
+    `,
+    "Nenhum lead recebido ainda."
+  );
+}
+
+function renderAuthState() {
+  const user = state.user;
+  const isOwner = user?.role === "owner";
+  const isStaff = user?.role === "staff";
+  const canAccessAdmin = isOwner || isStaff;
+  const isLogged = Boolean(user);
+
+  adminPanel.classList.toggle("is-hidden", !canAccessAdmin);
+  dashboardLink.classList.toggle("is-hidden", !canAccessAdmin);
+  openLoginButton.classList.toggle("is-hidden", isLogged);
+  authNavGroup.classList.toggle("is-hidden", !isLogged);
+  logoutButton.classList.toggle("is-hidden", !canAccessAdmin);
+  adminStatus.textContent = canAccessAdmin ? "Conectado" : "Desconectado";
+  if (adminTitle) {
+    adminTitle.textContent = isOwner ? "Painel do proprietário" : isStaff ? "Painel da equipe" : "Painel da academia";
+  }
+
+  document.querySelectorAll(".owner-only").forEach((node) => {
+    node.classList.toggle("is-hidden", !isOwner);
+  });
+
+  document.querySelectorAll("[data-admin-tab].owner-only").forEach((node) => {
+    node.classList.toggle("is-hidden", !isOwner);
+  });
+
+  if (isLogged) {
+    userPill.textContent = isOwner ? "Proprietário" : isStaff ? "Equipe" : user.name;
+    userPill.title = canAccessAdmin ? "Ir para o painel da academia" : "Abrir gerenciamento da conta";
+  }
+
+  if (canAccessAdmin) {
+    adminPanel.classList.add("is-visible");
+    setAdminTab(getDefaultAdminTab());
+  }
+
+  renderMemberArea();
+}
+

@@ -329,6 +329,9 @@ async function handleApi(request, response, url) {
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/students/")) {
+      if (manager.role !== "owner") {
+        return sendJson(response, 403, { error: "A equipe nao pode remover alunos." });
+      }
       const id = Number(url.pathname.split("/").pop());
       await pool.query(
         "UPDATE users SET gym_status = NULL, membership_plan = NULL, notes = NULL WHERE id = $1 AND role <> 'owner'",
@@ -508,6 +511,14 @@ async function seedDatabase() {
     await pool.query(
       "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'owner')",
       ["Administrador Corpo Ativo", "admin@corpoativo.com", hashPassword("corpo123")]
+    );
+  }
+
+  const staffExists = await pool.query("SELECT id FROM users WHERE email = $1", ["recepcao@corpoativo.com"]);
+  if (!staffExists.rowCount) {
+    await pool.query(
+      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'staff')",
+      ["Recepção Corpo Ativo", "recepcao@corpoativo.com", hashPassword("recepcao123") ]
     );
   }
 
@@ -715,5 +726,9 @@ async function requireManager(request, response) {
   }
   return user;
 }
+
+
+
+
 
 
