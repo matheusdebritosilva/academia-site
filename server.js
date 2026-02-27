@@ -235,8 +235,8 @@ async function handleApi(request, response, url) {
       return sendJson(response, 201, { success: true });
     }
 
-    const owner = await requireOwner(request, response);
-    if (!owner) return;
+    const manager = await requireManager(request, response);
+    if (!manager) return;
 
     if (method === "GET" && url.pathname === "/api/admin/dashboard") {
       const [plans, coaches, schedules, leads, users, students] = await Promise.all([
@@ -249,7 +249,7 @@ async function handleApi(request, response, url) {
       ]);
 
       return sendJson(response, 200, {
-        user: sanitizeUser(owner),
+        user: sanitizeUser(manager),
         plans,
         coaches,
         schedules,
@@ -259,6 +259,9 @@ async function handleApi(request, response, url) {
         metrics: getDashboardMetrics({ users, students, leads })
       });
     }
+
+    const owner = await requireOwner(request, response);
+    if (!owner) return;
 
     if (method === "PUT" && url.pathname.startsWith("/api/admin/users/") && url.pathname.endsWith("/role")) {
       const body = await readJsonBody(request);
@@ -701,3 +704,16 @@ async function requireOwner(request, response) {
   }
   return user;
 }
+
+
+async function requireManager(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return null;
+  if (!["owner", "staff"].includes(user.role)) {
+    sendJson(response, 403, { error: "Acesso restrito à gestão da academia." });
+    return null;
+  }
+  return user;
+}
+
+

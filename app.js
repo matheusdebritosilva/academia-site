@@ -53,6 +53,7 @@ const logoutButton = document.getElementById("logoutButton");
 const adminFeedback = document.getElementById("adminFeedback");
 const adminPanel = document.getElementById("painel");
 const adminStatus = document.getElementById("adminStatus");
+const adminTitle = document.getElementById("adminTitle");
 const memberArea = document.getElementById("conta");
 const memberWelcome = document.getElementById("memberWelcome");
 const memberDescription = document.getElementById("memberDescription");
@@ -212,7 +213,7 @@ function openAccountArea() {
     return;
   }
 
-  const target = state.user.role === "owner" ? adminPanel : memberArea;
+  const target = ["owner", "staff"].includes(state.user.role) ? adminPanel : memberArea;
   target?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -438,7 +439,7 @@ function setupUiEvents() {
         }
       });
       contactForm.reset();
-      if (state.user?.role === "owner") {
+      if (["owner", "staff"].includes(state.user?.role)) {
         await loadAdminDashboard();
       }
       authFeedback.textContent = "Contato enviado com sucesso.";
@@ -512,7 +513,7 @@ async function submitAuth(endpoint, body) {
     state.user = user;
     renderAuthState();
     closeModal();
-    if (user.role === "owner") {
+    if (["owner", "staff"].includes(user.role)) {
       await loadAdminDashboard();
     }
     openAccountArea();
@@ -541,7 +542,7 @@ async function loadCurrentUser() {
     const { user } = await apiFetch("/api/auth/me");
     state.user = user;
     renderAuthState();
-    if (user.role === "owner") {
+    if (["owner", "staff"].includes(user.role)) {
       await loadAdminDashboard();
     }
   } catch {
@@ -559,7 +560,7 @@ async function loadPublicData() {
 }
 
 async function loadAdminDashboard() {
-  if (state.user?.role !== "owner") return;
+  if (!["owner", "staff"].includes(state.user?.role)) return;
   const data = await apiFetch("/api/admin/dashboard");
   state.leads = data.leads;
   state.users = data.users;
@@ -937,3 +938,54 @@ function formatDate(value) {
 
 
 
+
+
+
+
+
+async function loadAdminDashboard() {
+  if (!["owner", "staff"].includes(state.user?.role)) return;
+  const data = await apiFetch("/api/admin/dashboard");
+  state.leads = data.leads;
+  state.users = data.users;
+  state.students = data.students;
+  state.metrics = data.metrics;
+  state.plans = data.plans;
+  state.coaches = data.coaches;
+  state.schedules = data.schedules;
+  renderPublicLists();
+  renderAdminLists();
+}
+
+function renderAuthState() {
+  const user = state.user;
+  const isOwner = user?.role === "owner";
+  const isStaff = user?.role === "staff";
+  const canAccessAdmin = isOwner || isStaff;
+  const isLogged = Boolean(user);
+
+  adminPanel.classList.toggle("is-hidden", !canAccessAdmin);
+  dashboardLink.classList.toggle("is-hidden", !canAccessAdmin);
+  openLoginButton.classList.toggle("is-hidden", isLogged);
+  authNavGroup.classList.toggle("is-hidden", !isLogged);
+  logoutButton.classList.toggle("is-hidden", !canAccessAdmin);
+  adminStatus.textContent = canAccessAdmin ? "Conectado" : "Desconectado";
+  if (adminTitle) {
+    adminTitle.textContent = isOwner ? "Painel do proprietário" : isStaff ? "Painel da equipe" : "Painel da academia";
+  }
+
+  document.querySelectorAll(".owner-only").forEach((node) => {
+    node.classList.toggle("is-hidden", !isOwner);
+  });
+
+  if (isLogged) {
+    userPill.textContent = isOwner ? "Proprietário" : isStaff ? "Equipe" : user.name;
+    userPill.title = canAccessAdmin ? "Ir para o painel da academia" : "Abrir gerenciamento da conta";
+  }
+
+  if (canAccessAdmin) {
+    adminPanel.classList.add("is-visible");
+  }
+
+  renderMemberArea();
+}
