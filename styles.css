@@ -1174,3 +1174,8 @@ h1 {
   }
 }
 
+
+.hero-accent {
+  color: var(--red-strong);
+}
+
