@@ -4,13 +4,36 @@
   coaches: [],
   schedules: [],
   leads: [],
-  users: []
+  users: [],
+  students: [],
+  metrics: {
+    newUsersThisMonth: 0,
+    recentLeads: 0,
+    activeStudents: 0,
+    topPlan: "Sem dados",
+    totalUsers: 0,
+    staffCount: 0
+  }
 };
 
 const editing = {
   planId: null,
   coachId: null,
-  scheduleId: null
+  scheduleId: null,
+  studentId: null
+};
+
+const roleLabels = {
+  owner: "Proprietário",
+  staff: "Equipe",
+  member: "Aluno"
+};
+
+const statusLabels = {
+  ativo: "Ativo",
+  inadimplente: "Inadimplente",
+  experimental: "Experimental",
+  cancelado: "Cancelado"
 };
 
 const topbar = document.querySelector(".topbar");
@@ -32,7 +55,11 @@ const memberArea = document.getElementById("conta");
 const memberWelcome = document.getElementById("memberWelcome");
 const memberDescription = document.getElementById("memberDescription");
 const memberDetails = document.getElementById("memberDetails");
+const memberForm = document.getElementById("memberForm");
+const memberFeedback = document.getElementById("memberFeedback");
 const contactForm = document.getElementById("contactForm");
+const permissionForm = document.getElementById("permissionForm");
+const studentForm = document.getElementById("studentForm");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
 const revealNodes = document.querySelectorAll("[data-reveal]");
 const authTabs = Array.from(document.querySelectorAll("[data-auth-tab]"));
@@ -68,6 +95,14 @@ function setButtonLoading(button, isLoading, loadingText) {
   button.textContent = isLoading ? loadingText : button.dataset.defaultText;
 }
 
+function roleLabel(role) {
+  return roleLabels[role] || "Usuário";
+}
+
+function statusLabel(status) {
+  return statusLabels[status] || "Sem status";
+}
+
 function resetPlanForm() {
   editing.planId = null;
   planForm.reset();
@@ -90,6 +125,16 @@ function resetScheduleForm() {
   const button = scheduleForm.querySelector('button[type="submit"]');
   button.dataset.defaultText = "Adicionar horário";
   button.textContent = "Adicionar horário";
+}
+
+function resetStudentForm() {
+  editing.studentId = null;
+  if (!studentForm) return;
+  studentForm.reset();
+  const button = studentForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Salvar aluno";
+  button.textContent = "Salvar aluno";
+  syncAdminSelects();
 }
 
 function startPlanEdit(plan) {
@@ -123,6 +168,29 @@ function startScheduleEdit(schedule) {
   button.dataset.defaultText = "Salvar horário";
   button.textContent = "Salvar horário";
   scheduleForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function startStudentEdit(studentId) {
+  const student = state.students.find((item) => item.id === Number(studentId));
+  if (!student || !studentForm) return;
+
+  editing.studentId = student.id;
+  studentForm.elements.userId.value = String(student.id);
+  studentForm.elements.status.value = student.gymStatus || "ativo";
+  studentForm.elements.plan.value = student.membershipPlan || "";
+  studentForm.elements.notes.value = student.notes || "";
+  const button = studentForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Atualizar aluno";
+  button.textContent = "Atualizar aluno";
+  studentForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function fillPermissionForm(userId) {
+  const user = state.users.find((item) => item.id === Number(userId));
+  if (!user || !permissionForm) return;
+  permissionForm.elements.userId.value = String(user.id);
+  permissionForm.elements.role.value = user.role === "owner" ? "member" : user.role;
+  permissionForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function openAccountArea() {
@@ -259,6 +327,82 @@ function setupUiEvents() {
     }
   });
 
+  permissionForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(permissionForm);
+    const button = permissionForm.querySelector('button[type="submit"]');
+    setButtonLoading(button, true, "Salvando...");
+    try {
+      await apiFetch(`/api/admin/users/${data.get("userId")}/role`, {
+        method: "PUT",
+        body: { role: data.get("role") }
+      });
+      await loadAdminDashboard();
+      setAdminFeedback("Permissão atualizada com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, "Salvando...");
+    }
+  });
+
+  studentForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(studentForm);
+    const button = studentForm.querySelector('button[type="submit"]');
+    const isEditingStudent = Boolean(editing.studentId);
+    setButtonLoading(button, true, isEditingStudent ? "Atualizando..." : "Salvando...");
+    try {
+      await apiFetch("/api/admin/students", {
+        method: "POST",
+        body: {
+          userId: data.get("userId"),
+          status: data.get("status"),
+          plan: data.get("plan"),
+          notes: data.get("notes")
+        }
+      });
+      resetStudentForm();
+      await loadAdminDashboard();
+      setAdminFeedback(isEditingStudent ? "Aluno atualizado com sucesso." : "Aluno salvo com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, isEditingStudent ? "Atualizando..." : "Salvando...");
+    }
+  });
+
+  memberForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(memberForm);
+    const button = memberForm.querySelector('button[type="submit"]');
+    memberFeedback.textContent = "";
+    memberFeedback.classList.remove("is-success");
+    setButtonLoading(button, true, "Salvando...");
+    try {
+      const { user } = await apiFetch("/api/auth/account", {
+        method: "PUT",
+        body: {
+          name: data.get("name"),
+          email: data.get("email"),
+          currentPassword: data.get("currentPassword"),
+          newPassword: data.get("newPassword")
+        }
+      });
+      state.user = user;
+      renderAuthState();
+      memberForm.elements.currentPassword.value = "";
+      memberForm.elements.newPassword.value = "";
+      memberFeedback.textContent = "Conta atualizada com sucesso.";
+      memberFeedback.classList.add("is-success");
+    } catch (error) {
+      memberFeedback.textContent = error.message;
+      memberFeedback.classList.remove("is-success");
+    } finally {
+      setButtonLoading(button, false, "Salvando...");
+    }
+  });
+
   contactForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(contactForm);
@@ -283,21 +427,24 @@ function setupUiEvents() {
   });
 
   document.addEventListener("click", async (event) => {
-    const editButton = event.target.closest("[data-edit-type][data-edit-id]");
-    if (editButton) {
-      const { editType, editId } = editButton.dataset;
-      if (editType === "plan") {
-        const plan = state.plans.find((item) => String(item.id) === editId);
-        if (plan) startPlanEdit(plan);
-      }
-      if (editType === "coach") {
-        const coach = state.coaches.find((item) => String(item.id) === editId);
-        if (coach) startCoachEdit(coach);
-      }
-      if (editType === "schedule") {
-        const schedule = state.schedules.find((item) => String(item.id) === editId);
-        if (schedule) startScheduleEdit(schedule);
-      }
+    const studentEditButton = event.target.closest("[data-edit-type='student'][data-edit-id]");
+    if (studentEditButton) {
+      startStudentEdit(studentEditButton.dataset.editId);
+      return;
+    }
+
+    const contentEditButton = event.target.closest("[data-edit-type][data-edit-id]");
+    if (contentEditButton) {
+      const { editType, editId } = contentEditButton.dataset;
+      if (editType === "plan") startPlanEdit(state.plans.find((item) => String(item.id) === editId));
+      if (editType === "coach") startCoachEdit(state.coaches.find((item) => String(item.id) === editId));
+      if (editType === "schedule") startScheduleEdit(state.schedules.find((item) => String(item.id) === editId));
+      return;
+    }
+
+    const roleButton = event.target.closest("[data-role-id]");
+    if (roleButton) {
+      fillPermissionForm(roleButton.dataset.roleId);
       return;
     }
 
@@ -309,20 +456,24 @@ function setupUiEvents() {
       plan: `/api/admin/plans/${id}`,
       coach: `/api/admin/coaches/${id}`,
       schedule: `/api/admin/schedules/${id}`,
-      lead: `/api/admin/leads/${id}`
+      lead: `/api/admin/leads/${id}`,
+      student: `/api/admin/students/${id}`
     };
 
-    setButtonLoading(button, true, "Removendo...");
+    setButtonLoading(button, true, type === "student" ? "Removendo..." : "Removendo...");
     try {
       await apiFetch(routeMap[type], { method: "DELETE" });
       await loadAdminDashboard();
-      if (type !== "lead") {
+      if (["plan", "coach", "schedule"].includes(type)) {
         await loadPublicData();
+      }
+      if (type === "student" && editing.studentId === Number(id)) {
+        resetStudentForm();
       }
       if (type === "plan" && editing.planId === Number(id)) resetPlanForm();
       if (type === "coach" && editing.coachId === Number(id)) resetCoachForm();
       if (type === "schedule" && editing.scheduleId === Number(id)) resetScheduleForm();
-      setAdminFeedback("Item removido com sucesso.", true);
+      setAdminFeedback(type === "student" ? "Aluno removido da gestão com sucesso." : "Item removido com sucesso.", true);
     } catch (error) {
       setAdminFeedback(error.message);
     } finally {
@@ -354,7 +505,12 @@ async function logout() {
   state.user = null;
   state.leads = [];
   state.users = [];
+  state.students = [];
   setAdminFeedback("");
+  if (memberFeedback) {
+    memberFeedback.textContent = "";
+    memberFeedback.classList.remove("is-success");
+  }
   renderAuthState();
   renderAdminLists();
 }
@@ -386,11 +542,39 @@ async function loadAdminDashboard() {
   const data = await apiFetch("/api/admin/dashboard");
   state.leads = data.leads;
   state.users = data.users;
+  state.students = data.students;
+  state.metrics = data.metrics;
   state.plans = data.plans;
   state.coaches = data.coaches;
   state.schedules = data.schedules;
   renderPublicLists();
   renderAdminLists();
+}
+
+function syncAdminSelects() {
+  if (permissionForm) {
+    const currentUserId = permissionForm.elements.userId.value;
+    const options = state.users
+      .filter((user) => user.role !== "owner")
+      .map((user) => `<option value="${user.id}">${user.name} · ${user.email}</option>`)
+      .join("");
+    permissionForm.elements.userId.innerHTML = options || '<option value="">Nenhum usuário disponível</option>';
+    if (currentUserId && state.users.some((user) => String(user.id) === currentUserId && user.role !== "owner")) {
+      permissionForm.elements.userId.value = currentUserId;
+    }
+  }
+
+  if (studentForm) {
+    const currentStudentId = editing.studentId ? String(editing.studentId) : studentForm.elements.userId.value;
+    const options = state.users
+      .filter((user) => user.role !== "owner")
+      .map((user) => `<option value="${user.id}">${user.name} · ${user.email}</option>`)
+      .join("");
+    studentForm.elements.userId.innerHTML = options || '<option value="">Nenhum usuário disponível</option>';
+    if (currentStudentId && state.users.some((user) => String(user.id) === currentStudentId && user.role !== "owner")) {
+      studentForm.elements.userId.value = currentStudentId;
+    }
+  }
 }
 
 function renderPublicLists() {
@@ -436,17 +620,21 @@ function renderPublicLists() {
 }
 
 function renderAdminLists() {
-  const metricLeads = document.getElementById("metricLeads");
-  const metricPlans = document.getElementById("metricPlans");
-  const metricCoaches = document.getElementById("metricCoaches");
-  const metricSchedules = document.getElementById("metricSchedules");
+  const metricNewUsers = document.getElementById("metricNewUsers");
+  const metricRecentLeads = document.getElementById("metricRecentLeads");
+  const metricActiveStudents = document.getElementById("metricActiveStudents");
+  const metricTopPlan = document.getElementById("metricTopPlan");
   const metricUsers = document.getElementById("metricUsers");
+  const metricStaff = document.getElementById("metricStaff");
 
-  if (metricLeads) metricLeads.textContent = String(state.leads.length);
-  if (metricPlans) metricPlans.textContent = String(state.plans.length);
-  if (metricCoaches) metricCoaches.textContent = String(state.coaches.length);
-  if (metricSchedules) metricSchedules.textContent = String(state.schedules.length);
-  if (metricUsers) metricUsers.textContent = String(state.users.length);
+  if (metricNewUsers) metricNewUsers.textContent = String(state.metrics.newUsersThisMonth || 0);
+  if (metricRecentLeads) metricRecentLeads.textContent = String(state.metrics.recentLeads || 0);
+  if (metricActiveStudents) metricActiveStudents.textContent = String(state.metrics.activeStudents || 0);
+  if (metricTopPlan) metricTopPlan.textContent = state.metrics.topPlan || "Sem dados";
+  if (metricUsers) metricUsers.textContent = String(state.metrics.totalUsers || state.users.length);
+  if (metricStaff) metricStaff.textContent = String(state.metrics.staffCount || 0);
+
+  syncAdminSelects();
 
   renderCollection(
     state.plans,
@@ -510,14 +698,39 @@ function renderAdminLists() {
         <div>
           <strong>${user.name}</strong>
           <p>${user.email}</p>
+          <p>${user.gymStatus ? `${statusLabel(user.gymStatus)} · ${user.membershipPlan || "Sem plano"}` : "Sem matrícula ativa"}</p>
         </div>
         <div class="user-list-meta">
-          <span class="admin-status">${user.role === "owner" ? "Proprietário" : "Aluno"}</span>
+          <span class="admin-status">${roleLabel(user.role)}</span>
           <p>Criado em ${formatDate(user.createdAt)}</p>
+          ${user.role !== "owner" ? `<button class="button secondary item-edit" type="button" data-role-id="${user.id}">Ajustar acesso</button>` : ""}
         </div>
       </div>
     `,
     "Nenhum usuário cadastrado ainda."
+  );
+
+  renderCollection(
+    state.students,
+    document.getElementById("studentList"),
+    (student) => `
+      <div class="admin-item user-item">
+        <div>
+          <strong>${student.name}</strong>
+          <p>${student.membershipPlan || "Sem plano"}</p>
+          <p>${student.notes || "Sem observações internas."}</p>
+        </div>
+        <div class="user-list-meta">
+          <span class="admin-status status-${student.gymStatus}">${statusLabel(student.gymStatus)}</span>
+          <p>${student.email}</p>
+          <div class="admin-item-actions">
+            <button class="button secondary item-edit" type="button" data-edit-type="student" data-edit-id="${student.id}">Editar aluno</button>
+            <button class="button secondary item-delete" type="button" data-type="student" data-id="${student.id}">Remover</button>
+          </div>
+        </div>
+      </div>
+    `,
+    "Nenhum aluno gerenciado ainda."
   );
 
   renderCollection(
@@ -550,8 +763,11 @@ function renderMemberArea() {
   const user = state.user;
   if (!user || user.role === "owner") {
     memberArea.classList.add("is-hidden");
-    if (memberDetails) {
-      memberDetails.innerHTML = "";
+    if (memberDetails) memberDetails.innerHTML = "";
+    if (memberForm) memberForm.reset();
+    if (memberFeedback) {
+      memberFeedback.textContent = "";
+      memberFeedback.classList.remove("is-success");
     }
     return;
   }
@@ -559,12 +775,21 @@ function renderMemberArea() {
   memberArea.classList.remove("is-hidden");
   memberArea.classList.add("is-visible");
   memberWelcome.textContent = `Bem-vindo, ${user.name}.`;
-  memberDescription.textContent = "Sua conta está ativa. Use esta área para acompanhar seu acesso e manter seus dados de cadastro em dia.";
+  memberDescription.textContent = user.role === "staff"
+    ? "Seu acesso está configurado como equipe. Use esta área para manter seus dados atualizados."
+    : "Sua conta está ativa. Use esta área para acompanhar seu acesso e manter seus dados de cadastro em dia.";
+
+  if (memberForm) {
+    memberForm.elements.name.value = user.name;
+    memberForm.elements.email.value = user.email;
+  }
+
   memberDetails.innerHTML = `
     <div class="member-detail-row"><span>Nome</span><strong>${user.name}</strong></div>
     <div class="member-detail-row"><span>E-mail</span><strong>${user.email}</strong></div>
-    <div class="member-detail-row"><span>Perfil</span><strong>${user.role === "owner" ? "Proprietário" : "Aluno"}</strong></div>
-    <div class="member-detail-row"><span>Status</span><strong>Conta ativa</strong></div>
+    <div class="member-detail-row"><span>Perfil</span><strong>${roleLabel(user.role)}</strong></div>
+    <div class="member-detail-row"><span>Status</span><strong>${user.gymStatus ? statusLabel(user.gymStatus) : "Conta ativa"}</strong></div>
+    <div class="member-detail-row"><span>Plano</span><strong>${user.membershipPlan || "Não definido"}</strong></div>
   `;
 }
 
@@ -581,7 +806,7 @@ function renderAuthState() {
   adminStatus.textContent = isOwner ? "Conectado" : "Desconectado";
 
   if (isLogged) {
-    userPill.textContent = user.role === "owner" ? "Proprietário" : user.name;
+    userPill.textContent = isOwner ? "Proprietário" : user.name;
     userPill.title = isOwner ? "Ir para o painel do proprietário" : "Abrir gerenciamento da conta";
   }
 
@@ -686,3 +911,4 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
+

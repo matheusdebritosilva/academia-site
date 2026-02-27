@@ -204,7 +204,15 @@
           </div>
         </article>
         <article class="member-card">
-          <h3>Resumo da conta</h3>
+          <h3>Editar conta</h3>
+          <form class="member-form" id="memberForm">
+            <input type="text" name="name" placeholder="Seu nome" required>
+            <input type="email" name="email" placeholder="seu@email.com" required>
+            <input type="password" name="currentPassword" placeholder="Senha atual" required>
+            <input type="password" name="newPassword" placeholder="Nova senha (opcional)">
+            <button class="button primary" type="submit">Salvar conta</button>
+          </form>
+          <p class="member-feedback" id="memberFeedback"></p>
           <div class="member-details" id="memberDetails"></div>
         </article>
       </div>
@@ -224,26 +232,30 @@
 
       <p class="admin-feedback" id="adminFeedback"></p>
 
-      <div class="metrics-grid">
+      <div class="metrics-grid metrics-grid-extended">
         <article class="metric-card">
-          <span>Leads recebidos</span>
-          <strong id="metricLeads">0</strong>
+          <span>Cadastros no mês</span>
+          <strong id="metricNewUsers">0</strong>
         </article>
         <article class="metric-card">
-          <span>Planos ativos</span>
-          <strong id="metricPlans">0</strong>
+          <span>Leads recentes</span>
+          <strong id="metricRecentLeads">0</strong>
         </article>
         <article class="metric-card">
-          <span>Coaches exibidos</span>
-          <strong id="metricCoaches">0</strong>
+          <span>Alunos ativos</span>
+          <strong id="metricActiveStudents">0</strong>
         </article>
-        <article class="metric-card">
-          <span>Horários publicados</span>
-          <strong id="metricSchedules">0</strong>
+        <article class="metric-card metric-card-highlight">
+          <span>Plano mais escolhido</span>
+          <strong id="metricTopPlan">Sem dados</strong>
         </article>
         <article class="metric-card">
           <span>Usuários cadastrados</span>
           <strong id="metricUsers">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Equipe interna</span>
+          <strong id="metricStaff">0</strong>
         </article>
       </div>
 
@@ -293,12 +305,40 @@
           <div class="admin-list" id="scheduleAdminList"></div>
         </article>
 
-        <article class="admin-card admin-card-wide">
+        <article class="admin-card">
           <div class="admin-card-header">
-            <h3>Usuários cadastrados</h3>
-            <p>Veja todas as contas criadas no site e acompanhe o tipo de acesso.</p>
+            <h3>Permissões e acessos</h3>
+            <p>Defina quem é aluno comum ou membro da equipe.</p>
           </div>
+          <form id="permissionForm" class="admin-form">
+            <select name="userId" required></select>
+            <select name="role" required>
+              <option value="member">Aluno</option>
+              <option value="staff">Equipe</option>
+            </select>
+            <button class="button primary" type="submit">Salvar acesso</button>
+          </form>
           <div class="admin-list" id="userList"></div>
+        </article>
+
+        <article class="admin-card">
+          <div class="admin-card-header">
+            <h3>Gestão de alunos</h3>
+            <p>Cadastre status, plano e observações de cada aluno da academia.</p>
+          </div>
+          <form id="studentForm" class="admin-form">
+            <select name="userId" required></select>
+            <select name="status" required>
+              <option value="ativo">Ativo</option>
+              <option value="inadimplente">Inadimplente</option>
+              <option value="experimental">Experimental</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+            <input type="text" name="plan" placeholder="Plano do aluno" required>
+            <textarea name="notes" placeholder="Observações internas"></textarea>
+            <button class="button primary" type="submit">Salvar aluno</button>
+          </form>
+          <div class="admin-list" id="studentList"></div>
         </article>
 
         <article class="admin-card admin-card-wide">
@@ -333,6 +373,9 @@
   <script src="app.js"></script>
 </body>
 </html>
+
+
+
 
 
 

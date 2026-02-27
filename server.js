@@ -9,6 +9,8 @@ const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const SESSION_COOKIE = "corpo_ativo_session";
 const DATABASE_URL = process.env.DATABASE_URL;
+const STUDENT_STATUSES = ["ativo", "inadimplente", "experimental", "cancelado"];
+const MANAGED_ROLES = ["member", "staff"];
 
 if (!DATABASE_URL) {
   throw new Error("DATABASE_URL não configurada.");
@@ -66,6 +68,9 @@ async function initializeDatabase() {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'member',
+      gym_status TEXT,
+      membership_plan TEXT,
+      notes TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -105,6 +110,10 @@ async function initializeDatabase() {
     );
   `);
 
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gym_status TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS membership_plan TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notes TEXT;`);
+
   await seedDatabase();
 }
 
@@ -132,13 +141,15 @@ async function handleApi(request, response, url) {
 
       const passwordHash = hashPassword(body.password);
       const result = await pool.query(
-        "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'member') RETURNING id, name, email, role",
+        `INSERT INTO users (name, email, password_hash, role)
+         VALUES ($1, $2, $3, 'member')
+         RETURNING id, name, email, role, gym_status AS "gymStatus", membership_plan AS "membershipPlan", notes`,
         [String(body.name).trim(), email, passwordHash]
       );
 
       const user = result.rows[0];
       await createSession(response, user.id);
-      return sendJson(response, 201, { user });
+      return sendJson(response, 201, { user: sanitizeUser(user) });
     }
 
     if (method === "POST" && url.pathname === "/api/auth/login") {
@@ -147,7 +158,9 @@ async function handleApi(request, response, url) {
 
       const email = String(body.email).trim().toLowerCase();
       const result = await pool.query(
-        "SELECT id, name, email, role, password_hash FROM users WHERE email = $1",
+        `SELECT id, name, email, role, gym_status AS "gymStatus", membership_plan AS "membershipPlan", notes, password_hash
+         FROM users
+         WHERE email = $1`,
         [email]
       );
       const user = result.rows[0];
@@ -174,6 +187,44 @@ async function handleApi(request, response, url) {
       return sendJson(response, 200, { user: sanitizeUser(sessionUser) });
     }
 
+    if (method === "PUT" && url.pathname === "/api/auth/account") {
+      const sessionUser = await requireUser(request, response);
+      if (!sessionUser) return;
+
+      const body = await readJsonBody(request);
+      validateFields(body, ["name", "email", "currentPassword"]);
+
+      const email = String(body.email).trim().toLowerCase();
+      const name = String(body.name).trim();
+      const newPassword = String(body.newPassword || "").trim();
+      const currentUserResult = await pool.query(
+        `SELECT id, name, email, role, gym_status AS "gymStatus", membership_plan AS "membershipPlan", notes, password_hash
+         FROM users WHERE id = $1`,
+        [sessionUser.id]
+      );
+      const currentUser = currentUserResult.rows[0];
+
+      if (!currentUser || !verifyPassword(body.currentPassword, currentUser.password_hash)) {
+        return sendJson(response, 401, { error: "Senha atual inválida." });
+      }
+
+      const existing = await pool.query("SELECT id FROM users WHERE email = $1 AND id <> $2", [email, sessionUser.id]);
+      if (existing.rowCount) {
+        return sendJson(response, 409, { error: "Este e-mail já está em uso." });
+      }
+
+      const nextPasswordHash = newPassword ? hashPassword(newPassword) : currentUser.password_hash;
+      const result = await pool.query(
+        `UPDATE users
+         SET name = $1, email = $2, password_hash = $3
+         WHERE id = $4
+         RETURNING id, name, email, role, gym_status AS "gymStatus", membership_plan AS "membershipPlan", notes`,
+        [name, email, nextPasswordHash, sessionUser.id]
+      );
+
+      return sendJson(response, 200, { user: sanitizeUser(result.rows[0]) });
+    }
+
     if (method === "POST" && url.pathname === "/api/leads") {
       const body = await readJsonBody(request);
       validateFields(body, ["name", "email"]);
@@ -188,13 +239,106 @@ async function handleApi(request, response, url) {
     if (!owner) return;
 
     if (method === "GET" && url.pathname === "/api/admin/dashboard") {
+      const [plans, coaches, schedules, leads, users, students] = await Promise.all([
+        listPlans(),
+        listCoaches(),
+        listSchedules(),
+        listLeads(),
+        listUsers(),
+        listStudents()
+      ]);
+
       return sendJson(response, 200, {
         user: sanitizeUser(owner),
-        plans: await listPlans(),
-        coaches: await listCoaches(),
-        schedules: await listSchedules(),
-        leads: await listLeads(),
-        users: await listUsers()
+        plans,
+        coaches,
+        schedules,
+        leads,
+        users,
+        students,
+        metrics: getDashboardMetrics({ users, students, leads })
+      });
+    }
+
+    if (method === "PUT" && url.pathname.startsWith("/api/admin/users/") && url.pathname.endsWith("/role")) {
+      const body = await readJsonBody(request);
+      validateFields(body, ["role"]);
+      const role = String(body.role).trim();
+      const id = Number(url.pathname.split("/")[4]);
+
+      if (!MANAGED_ROLES.includes(role)) {
+        return sendJson(response, 400, { error: "Perfil inválido para este painel." });
+      }
+
+      const target = await pool.query("SELECT id, role FROM users WHERE id = $1", [id]);
+      if (!target.rowCount) {
+        return sendJson(response, 404, { error: "Usuário não encontrado." });
+      }
+      if (target.rows[0].role === "owner") {
+        return sendJson(response, 403, { error: "Não é possível alterar o proprietário." });
+      }
+
+      await pool.query("UPDATE users SET role = $1 WHERE id = $2", [role, id]);
+      const users = await listUsers();
+      const students = await listStudents();
+      const leads = await listLeads();
+      return sendJson(response, 200, {
+        users,
+        students,
+        metrics: getDashboardMetrics({ users, students, leads })
+      });
+    }
+
+    if (method === "POST" && url.pathname === "/api/admin/students") {
+      const body = await readJsonBody(request);
+      validateFields(body, ["userId", "status", "plan"]);
+
+      const userId = Number(body.userId);
+      const status = String(body.status).trim().toLowerCase();
+      const plan = String(body.plan).trim();
+      const notes = String(body.notes || "").trim();
+
+      if (!STUDENT_STATUSES.includes(status)) {
+        return sendJson(response, 400, { error: "Status de aluno inválido." });
+      }
+
+      const target = await pool.query("SELECT id, role FROM users WHERE id = $1", [userId]);
+      if (!target.rowCount) {
+        return sendJson(response, 404, { error: "Usuário não encontrado." });
+      }
+      if (target.rows[0].role === "owner") {
+        return sendJson(response, 403, { error: "O proprietário não pode ser gerenciado como aluno." });
+      }
+
+      await pool.query(
+        "UPDATE users SET gym_status = $1, membership_plan = $2, notes = $3 WHERE id = $4",
+        [status, plan, notes || null, userId]
+      );
+
+      const users = await listUsers();
+      const students = await listStudents();
+      const leads = await listLeads();
+      return sendJson(response, 200, {
+        users,
+        students,
+        metrics: getDashboardMetrics({ users, students, leads })
+      });
+    }
+
+    if (method === "DELETE" && url.pathname.startsWith("/api/admin/students/")) {
+      const id = Number(url.pathname.split("/").pop());
+      await pool.query(
+        "UPDATE users SET gym_status = NULL, membership_plan = NULL, notes = NULL WHERE id = $1 AND role <> 'owner'",
+        [id]
+      );
+
+      const users = await listUsers();
+      const students = await listStudents();
+      const leads = await listLeads();
+      return sendJson(response, 200, {
+        users,
+        students,
+        metrics: getDashboardMetrics({ users, students, leads })
       });
     }
 
@@ -337,7 +481,7 @@ function readJsonBody(request) {
 
 function validateFields(body, fields) {
   for (const field of fields) {
-    if (!body[field] || !String(body[field]).trim()) {
+    if (body[field] === undefined || body[field] === null || !String(body[field]).trim()) {
       throw new Error(`Campo obrigatório ausente: ${field}`);
     }
   }
@@ -367,7 +511,8 @@ async function seedDatabase() {
   const plansCount = await pool.query("SELECT COUNT(*)::int AS total FROM plans");
   if (!plansCount.rows[0].total) {
     await pool.query(
-      "INSERT INTO plans (name, price, description, featured) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12)",
+      `INSERT INTO plans (name, price, description, featured)
+       VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12)`,
       [
         "Start", "R$ 89", "Acesso à musculação e avaliação inicial.", false,
         "Black", "R$ 149", "Musculação, funcional, consultoria e acesso 24 horas.", true,
@@ -417,13 +562,71 @@ async function listSchedules() {
 }
 
 async function listLeads() {
-  const result = await pool.query("SELECT id, name, email, created_at AS \"createdAt\" FROM leads ORDER BY id DESC");
+  const result = await pool.query("SELECT id, name, email, created_at AS \"createdAt\" FROM leads ORDER BY created_at DESC");
   return result.rows;
 }
 
 async function listUsers() {
-  const result = await pool.query("SELECT id, name, email, role, created_at AS \"createdAt\" FROM users ORDER BY id DESC");
+  const result = await pool.query(
+    `SELECT id, name, email, role,
+            gym_status AS "gymStatus",
+            membership_plan AS "membershipPlan",
+            notes,
+            created_at AS "createdAt"
+     FROM users
+     ORDER BY created_at DESC`
+  );
   return result.rows;
+}
+
+async function listStudents() {
+  const result = await pool.query(
+    `SELECT id, name, email, role,
+            gym_status AS "gymStatus",
+            membership_plan AS "membershipPlan",
+            notes,
+            created_at AS "createdAt"
+     FROM users
+     WHERE gym_status IS NOT NULL
+     ORDER BY created_at DESC`
+  );
+  return result.rows;
+}
+
+function getDashboardMetrics({ users, students, leads }) {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const newUsersThisMonth = users.filter((user) => {
+    const created = new Date(user.createdAt);
+    return created.getMonth() === currentMonth && created.getFullYear() === currentYear;
+  }).length;
+
+  const recentLeads = leads.filter((lead) => new Date(lead.createdAt) >= sevenDaysAgo).length;
+  const activeStudents = students.filter((student) => student.gymStatus === "ativo").length;
+  const staffCount = users.filter((user) => user.role === "staff").length;
+
+  const planCounter = students.reduce((accumulator, student) => {
+    const plan = String(student.membershipPlan || "").trim();
+    if (!plan) return accumulator;
+    accumulator[plan] = (accumulator[plan] || 0) + 1;
+    return accumulator;
+  }, {});
+
+  const topPlan = Object.entries(planCounter)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || "Sem dados";
+
+  return {
+    newUsersThisMonth,
+    recentLeads,
+    activeStudents,
+    topPlan,
+    totalUsers: users.length,
+    staffCount
+  };
 }
 
 function parseCookies(request) {
@@ -442,7 +645,14 @@ async function getSession(request) {
   if (!token) return null;
 
   const result = await pool.query(
-    `SELECT sessions.token, users.id, users.name, users.email, users.role
+    `SELECT sessions.token,
+            users.id,
+            users.name,
+            users.email,
+            users.role,
+            users.gym_status AS "gymStatus",
+            users.membership_plan AS "membershipPlan",
+            users.notes
      FROM sessions
      JOIN users ON users.id = sessions.user_id
      WHERE sessions.token = $1`,
@@ -462,7 +672,15 @@ function clearSession(response) {
 }
 
 function sanitizeUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    gymStatus: user.gymStatus || null,
+    membershipPlan: user.membershipPlan || null,
+    notes: user.notes || ""
+  };
 }
 
 async function requireUser(request, response) {
@@ -483,5 +701,3 @@ async function requireOwner(request, response) {
   }
   return user;
 }
-
-
