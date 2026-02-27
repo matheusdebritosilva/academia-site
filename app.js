@@ -6,6 +6,12 @@
   leads: []
 };
 
+const editing = {
+  planId: null,
+  coachId: null,
+  scheduleId: null
+};
+
 const topbar = document.querySelector(".topbar");
 const hero = document.querySelector(".hero");
 const authModal = document.getElementById("authModal");
@@ -28,6 +34,9 @@ const contactForm = document.getElementById("contactForm");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
 const revealNodes = document.querySelectorAll("[data-reveal]");
 const authTabs = Array.from(document.querySelectorAll("[data-auth-tab]"));
+const planForm = document.getElementById("planForm");
+const coachForm = document.getElementById("coachForm");
+const scheduleForm = document.getElementById("scheduleForm");
 
 initialize().catch(() => {
   authFeedback.textContent = "Não foi possível carregar o sistema.";
@@ -47,6 +56,73 @@ function setAdminFeedback(message, isSuccess = false) {
   adminFeedback.classList.toggle("is-success", isSuccess);
 }
 
+function setButtonLoading(button, isLoading, loadingText) {
+  if (!button) return;
+  if (!button.dataset.defaultText) {
+    button.dataset.defaultText = button.textContent;
+  }
+  button.disabled = isLoading;
+  button.classList.toggle("is-loading", isLoading);
+  button.textContent = isLoading ? loadingText : button.dataset.defaultText;
+}
+
+function resetPlanForm() {
+  editing.planId = null;
+  planForm.reset();
+  const button = planForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Adicionar plano";
+  button.textContent = "Adicionar plano";
+}
+
+function resetCoachForm() {
+  editing.coachId = null;
+  coachForm.reset();
+  const button = coachForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Adicionar coach";
+  button.textContent = "Adicionar coach";
+}
+
+function resetScheduleForm() {
+  editing.scheduleId = null;
+  scheduleForm.reset();
+  const button = scheduleForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Adicionar horário";
+  button.textContent = "Adicionar horário";
+}
+
+function startPlanEdit(plan) {
+  editing.planId = plan.id;
+  planForm.elements.name.value = plan.name;
+  planForm.elements.price.value = plan.price;
+  planForm.elements.description.value = plan.description;
+  planForm.elements.featured.checked = Boolean(plan.featured);
+  const button = planForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Salvar plano";
+  button.textContent = "Salvar plano";
+  planForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function startCoachEdit(coach) {
+  editing.coachId = coach.id;
+  coachForm.elements.name.value = coach.name;
+  coachForm.elements.role.value = coach.role;
+  const button = coachForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Salvar coach";
+  button.textContent = "Salvar coach";
+  coachForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function startScheduleEdit(schedule) {
+  editing.scheduleId = schedule.id;
+  scheduleForm.elements.day.value = schedule.day;
+  scheduleForm.elements.hours.value = schedule.hours;
+  scheduleForm.elements.details.value = schedule.details;
+  const button = scheduleForm.querySelector('button[type="submit"]');
+  button.dataset.defaultText = "Salvar horário";
+  button.textContent = "Salvar horário";
+  scheduleForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function setupUiEvents() {
   openLoginButton.addEventListener("click", openModal);
   navLogoutButton.addEventListener("click", logout);
@@ -63,89 +139,155 @@ function setupUiEvents() {
 
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const button = loginForm.querySelector('button[type="submit"]');
     const formData = new FormData(loginForm);
-    await submitAuth("/api/auth/login", {
-      email: formData.get("email"),
-      password: formData.get("password")
-    });
+    setButtonLoading(button, true, "Entrando...");
+    try {
+      await submitAuth("/api/auth/login", {
+        email: formData.get("email"),
+        password: formData.get("password")
+      });
+    } finally {
+      setButtonLoading(button, false, "Entrando...");
+    }
   });
 
   registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const button = registerForm.querySelector('button[type="submit"]');
     const formData = new FormData(registerForm);
-    await submitAuth("/api/auth/register", {
-      name: formData.get("name"),
-      email: formData.get("email"),
-      password: formData.get("password")
-    });
+    setButtonLoading(button, true, "Criando...");
+    try {
+      await submitAuth("/api/auth/register", {
+        name: formData.get("name"),
+        email: formData.get("email"),
+        password: formData.get("password")
+      });
+    } finally {
+      setButtonLoading(button, false, "Criando...");
+    }
   });
 
-  document.getElementById("planForm").addEventListener("submit", async (event) => {
+  planForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await apiFetch("/api/admin/plans", {
-      method: "POST",
-      body: {
-        name: data.get("name"),
-        price: data.get("price"),
-        description: data.get("description"),
-        featured: data.get("featured") === "on"
-      }
-    });
-    event.currentTarget.reset();
-    await loadAdminDashboard();
-    await loadPublicData();
+    const data = new FormData(planForm);
+    const button = planForm.querySelector('button[type="submit"]');
+    const isEditing = Boolean(editing.planId);
+    setButtonLoading(button, true, isEditing ? "Salvando..." : "Adicionando...");
+    try {
+      await apiFetch(isEditing ? `/api/admin/plans/${editing.planId}` : "/api/admin/plans", {
+        method: isEditing ? "PUT" : "POST",
+        body: {
+          name: data.get("name"),
+          price: data.get("price"),
+          description: data.get("description"),
+          featured: data.get("featured") === "on"
+        }
+      });
+      resetPlanForm();
+      await loadAdminDashboard();
+      await loadPublicData();
+      setAdminFeedback(isEditing ? "Plano atualizado com sucesso." : "Plano adicionado com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, isEditing ? "Salvando..." : "Adicionando...");
+    }
   });
 
-  document.getElementById("coachForm").addEventListener("submit", async (event) => {
+  coachForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await apiFetch("/api/admin/coaches", {
-      method: "POST",
-      body: {
-        name: data.get("name"),
-        role: data.get("role")
-      }
-    });
-    event.currentTarget.reset();
-    await loadAdminDashboard();
-    await loadPublicData();
+    const data = new FormData(coachForm);
+    const button = coachForm.querySelector('button[type="submit"]');
+    const isEditing = Boolean(editing.coachId);
+    setButtonLoading(button, true, isEditing ? "Salvando..." : "Adicionando...");
+    try {
+      await apiFetch(isEditing ? `/api/admin/coaches/${editing.coachId}` : "/api/admin/coaches", {
+        method: isEditing ? "PUT" : "POST",
+        body: {
+          name: data.get("name"),
+          role: data.get("role")
+        }
+      });
+      resetCoachForm();
+      await loadAdminDashboard();
+      await loadPublicData();
+      setAdminFeedback(isEditing ? "Coach atualizado com sucesso." : "Coach adicionado com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, isEditing ? "Salvando..." : "Adicionando...");
+    }
   });
 
-  document.getElementById("scheduleForm").addEventListener("submit", async (event) => {
+  scheduleForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await apiFetch("/api/admin/schedules", {
-      method: "POST",
-      body: {
-        day: data.get("day"),
-        hours: data.get("hours"),
-        details: data.get("details")
-      }
-    });
-    event.currentTarget.reset();
-    await loadAdminDashboard();
-    await loadPublicData();
+    const data = new FormData(scheduleForm);
+    const button = scheduleForm.querySelector('button[type="submit"]');
+    const isEditing = Boolean(editing.scheduleId);
+    setButtonLoading(button, true, isEditing ? "Salvando..." : "Adicionando...");
+    try {
+      await apiFetch(isEditing ? `/api/admin/schedules/${editing.scheduleId}` : "/api/admin/schedules", {
+        method: isEditing ? "PUT" : "POST",
+        body: {
+          day: data.get("day"),
+          hours: data.get("hours"),
+          details: data.get("details")
+        }
+      });
+      resetScheduleForm();
+      await loadAdminDashboard();
+      await loadPublicData();
+      setAdminFeedback(isEditing ? "Horário atualizado com sucesso." : "Horário adicionado com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, isEditing ? "Salvando..." : "Adicionando...");
+    }
   });
 
   contactForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await apiFetch("/api/leads", {
-      method: "POST",
-      body: {
-        name: data.get("name"),
-        email: data.get("email")
+    const data = new FormData(contactForm);
+    const button = contactForm.querySelector('button[type="submit"]');
+    setButtonLoading(button, true, "Enviando...");
+    try {
+      await apiFetch("/api/leads", {
+        method: "POST",
+        body: {
+          name: data.get("name"),
+          email: data.get("email")
+        }
+      });
+      contactForm.reset();
+      if (state.user?.role === "owner") {
+        await loadAdminDashboard();
       }
-    });
-    event.currentTarget.reset();
-    if (state.user?.role === "owner") {
-      await loadAdminDashboard();
+      authFeedback.textContent = "Contato enviado com sucesso.";
+    } finally {
+      setButtonLoading(button, false, "Enviando...");
     }
-    authFeedback.textContent = "Contato enviado com sucesso.";
   });
 
   document.addEventListener("click", async (event) => {
+    const editButton = event.target.closest("[data-edit-type][data-edit-id]");
+    if (editButton) {
+      const { editType, editId } = editButton.dataset;
+      if (editType === "plan") {
+        const plan = state.plans.find((item) => String(item.id) === editId);
+        if (plan) startPlanEdit(plan);
+      }
+      if (editType === "coach") {
+        const coach = state.coaches.find((item) => String(item.id) === editId);
+        if (coach) startCoachEdit(coach);
+      }
+      if (editType === "schedule") {
+        const schedule = state.schedules.find((item) => String(item.id) === editId);
+        if (schedule) startScheduleEdit(schedule);
+      }
+      return;
+    }
+
     const button = event.target.closest("[data-type][data-id]");
     if (!button) return;
 
@@ -157,10 +299,21 @@ function setupUiEvents() {
       lead: `/api/admin/leads/${id}`
     };
 
-    await apiFetch(routeMap[type], { method: "DELETE" });
-    await loadAdminDashboard();
-    if (type !== "lead") {
-      await loadPublicData();
+    setButtonLoading(button, true, "Removendo...");
+    try {
+      await apiFetch(routeMap[type], { method: "DELETE" });
+      await loadAdminDashboard();
+      if (type !== "lead") {
+        await loadPublicData();
+      }
+      if (type === "plan" && editing.planId === Number(id)) resetPlanForm();
+      if (type === "coach" && editing.coachId === Number(id)) resetCoachForm();
+      if (type === "schedule" && editing.scheduleId === Number(id)) resetScheduleForm();
+      setAdminFeedback("Item removido com sucesso.", true);
+    } catch (error) {
+      setAdminFeedback(error.message);
+    } finally {
+      setButtonLoading(button, false, "Removendo...");
     }
   });
 
@@ -281,7 +434,10 @@ function renderAdminLists() {
           <strong>${plan.name}${plan.featured ? " · Destaque" : ""}</strong>
           <p>${plan.price} · ${plan.description}</p>
         </div>
-        <button class="button secondary item-delete" type="button" data-type="plan" data-id="${plan.id}">Remover</button>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="plan" data-edit-id="${plan.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="plan" data-id="${plan.id}">Remover</button>
+        </div>
       </div>
     `,
     "Nenhum plano cadastrado."
@@ -296,7 +452,10 @@ function renderAdminLists() {
           <strong>${coach.name}</strong>
           <p>${coach.role}</p>
         </div>
-        <button class="button secondary item-delete" type="button" data-type="coach" data-id="${coach.id}">Remover</button>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="coach" data-edit-id="${coach.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="coach" data-id="${coach.id}">Remover</button>
+        </div>
       </div>
     `,
     "Nenhum coach cadastrado."
@@ -311,7 +470,10 @@ function renderAdminLists() {
           <strong>${schedule.day}</strong>
           <p>${schedule.hours} · ${schedule.details}</p>
         </div>
-        <button class="button secondary item-delete" type="button" data-type="schedule" data-id="${schedule.id}">Remover</button>
+        <div class="admin-item-actions">
+          <button class="button secondary item-edit" type="button" data-edit-type="schedule" data-edit-id="${schedule.id}">Editar</button>
+          <button class="button secondary item-delete" type="button" data-type="schedule" data-id="${schedule.id}">Remover</button>
+        </div>
       </div>
     `,
     "Nenhum horário cadastrado."
@@ -465,9 +627,3 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
-
-
-
-
-
-

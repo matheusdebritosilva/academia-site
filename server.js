@@ -211,6 +211,21 @@ async function handleApi(request, response, url) {
       return sendJson(response, 201, { plans: await listPlans() });
     }
 
+    if (method === "PUT" && url.pathname.startsWith("/api/admin/plans/")) {
+      const body = await readJsonBody(request);
+      validateFields(body, ["name", "price", "description"]);
+      const id = Number(url.pathname.split("/").pop());
+      const featured = Boolean(body.featured);
+      if (featured) {
+        await pool.query("UPDATE plans SET featured = FALSE WHERE id <> $1", [id]);
+      }
+      await pool.query(
+        "UPDATE plans SET name = $1, price = $2, description = $3, featured = $4 WHERE id = $5",
+        [String(body.name).trim(), String(body.price).trim(), String(body.description).trim(), featured, id]
+      );
+      return sendJson(response, 200, { plans: await listPlans() });
+    }
+
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/plans/")) {
       await pool.query("DELETE FROM plans WHERE id = $1", [Number(url.pathname.split("/").pop())]);
       return sendJson(response, 200, { plans: await listPlans() });
@@ -224,6 +239,17 @@ async function handleApi(request, response, url) {
         String(body.role).trim()
       ]);
       return sendJson(response, 201, { coaches: await listCoaches() });
+    }
+
+    if (method === "PUT" && url.pathname.startsWith("/api/admin/coaches/")) {
+      const body = await readJsonBody(request);
+      validateFields(body, ["name", "role"]);
+      await pool.query("UPDATE coaches SET name = $1, role = $2 WHERE id = $3", [
+        String(body.name).trim(),
+        String(body.role).trim(),
+        Number(url.pathname.split("/").pop())
+      ]);
+      return sendJson(response, 200, { coaches: await listCoaches() });
     }
 
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/coaches/")) {
@@ -242,6 +268,18 @@ async function handleApi(request, response, url) {
       return sendJson(response, 201, { schedules: await listSchedules() });
     }
 
+    if (method === "PUT" && url.pathname.startsWith("/api/admin/schedules/")) {
+      const body = await readJsonBody(request);
+      validateFields(body, ["day", "hours", "details"]);
+      await pool.query("UPDATE schedules SET day = $1, hours = $2, details = $3 WHERE id = $4", [
+        String(body.day).trim(),
+        String(body.hours).trim(),
+        String(body.details).trim(),
+        Number(url.pathname.split("/").pop())
+      ]);
+      return sendJson(response, 200, { schedules: await listSchedules() });
+    }
+
     if (method === "DELETE" && url.pathname.startsWith("/api/admin/schedules/")) {
       await pool.query("DELETE FROM schedules WHERE id = $1", [Number(url.pathname.split("/").pop())]);
       return sendJson(response, 200, { schedules: await listSchedules() });
@@ -255,7 +293,7 @@ async function handleApi(request, response, url) {
     return sendJson(response, 404, { error: "Rota de API não encontrada." });
   } catch (error) {
     const message = error.message || "";
-    const status = message.includes("Campo obrigatório") || message.includes("JSON invalido") ? 400 : 500;
+    const status = message.includes("Campo obrigatório") || message.includes("JSON inválido") ? 400 : 500;
     return sendJson(response, status, { error: status === 400 ? message : "Erro interno no servidor." });
   }
 }
@@ -355,8 +393,8 @@ async function seedDatabase() {
       "INSERT INTO schedules (day, hours, details) VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)",
       [
         "Seg a Sex", "05:00 às 23:00", "Musculação, cardio e funcional",
-        "Sábado", "08:00 as 18:00", "Aulas especiais e treino livre",
-        "Domingo", "08:00 as 14:00", "Recovery, cardio e mobilidade"
+        "Sábado", "08:00 às 18:00", "Aulas especiais e treino livre",
+        "Domingo", "08:00 às 14:00", "Recovery, cardio e mobilidade"
       ]
     );
   }
@@ -439,4 +477,3 @@ async function requireOwner(request, response) {
   }
   return user;
 }
-
