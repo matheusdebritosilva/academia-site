@@ -11,7 +11,7 @@ const SESSION_COOKIE = "corpo_ativo_session";
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL nao configurada.");
+  throw new Error("DATABASE_URL não configurada.");
 }
 
 const pool = new Pool({
@@ -42,7 +42,7 @@ async function main() {
         return serveStatic(response, path.join(ROOT, publicFiles[url.pathname]));
       }
 
-      sendJson(response, 404, { error: "Rota nao encontrada." });
+      sendJson(response, 404, { error: "Rota não encontrada." });
     } catch {
       sendJson(response, 500, { error: "Erro interno no servidor." });
     }
@@ -127,7 +127,7 @@ async function handleApi(request, response, url) {
       const email = String(body.email).trim().toLowerCase();
       const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
       if (existing.rowCount) {
-        return sendJson(response, 409, { error: "Este e-mail ja esta cadastrado." });
+        return sendJson(response, 409, { error: "Este e-mail já está cadastrado." });
       }
 
       const passwordHash = hashPassword(body.password);
@@ -152,7 +152,7 @@ async function handleApi(request, response, url) {
       );
       const user = result.rows[0];
       if (!user || !verifyPassword(body.password, user.password_hash)) {
-        return sendJson(response, 401, { error: "E-mail ou senha invalidos." });
+        return sendJson(response, 401, { error: "E-mail ou senha inválidos." });
       }
 
       await createSession(response, user.id);
@@ -252,10 +252,10 @@ async function handleApi(request, response, url) {
       return sendJson(response, 200, { leads: await listLeads() });
     }
 
-    return sendJson(response, 404, { error: "Rota de API nao encontrada." });
+    return sendJson(response, 404, { error: "Rota de API não encontrada." });
   } catch (error) {
     const message = error.message || "";
-    const status = message.includes("Campo obrigatorio") || message.includes("JSON invalido") ? 400 : 500;
+    const status = message.includes("Campo obrigatório") || message.includes("JSON invalido") ? 400 : 500;
     return sendJson(response, status, { error: status === 400 ? message : "Erro interno no servidor." });
   }
 }
@@ -289,7 +289,7 @@ function readJsonBody(request) {
       try {
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
-        reject(new Error("JSON invalido."));
+        reject(new Error("JSON inválido."));
       }
     });
     request.on("error", reject);
@@ -299,7 +299,7 @@ function readJsonBody(request) {
 function validateFields(body, fields) {
   for (const field of fields) {
     if (!body[field] || !String(body[field]).trim()) {
-      throw new Error(`Campo obrigatorio ausente: ${field}`);
+      throw new Error(`Campo obrigatório ausente: ${field}`);
     }
   }
 }
@@ -330,8 +330,8 @@ async function seedDatabase() {
     await pool.query(
       "INSERT INTO plans (name, price, description, featured) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12)",
       [
-        "Start", "R$ 89", "Acesso a musculacao e avaliacao inicial.", false,
-        "Black", "R$ 149", "Musculacao, funcional, consultoria e acesso 24 horas.", true,
+        "Start", "R$ 89", "Acesso à musculação e avaliação inicial.", false,
+        "Black", "R$ 149", "Musculação, funcional, consultoria e acesso 24 horas.", true,
         "Elite", "R$ 219", "Treino personalizado, recovery e acompanhamento premium.", false
       ]
     );
@@ -342,8 +342,8 @@ async function seedDatabase() {
     await pool.query(
       "INSERT INTO coaches (name, role) VALUES ($1, $2), ($3, $4), ($5, $6)",
       [
-        "Lucas Mendes", "Hipertrofia e forca",
-        "Ana Ribeiro", "Funcional e definicao",
+        "Lucas Mendes", "Hipertrofia e força",
+        "Ana Ribeiro", "Funcional e definição",
         "Bruno Costa", "Performance e condicionamento"
       ]
     );
@@ -354,8 +354,8 @@ async function seedDatabase() {
     await pool.query(
       "INSERT INTO schedules (day, hours, details) VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)",
       [
-        "Seg a Sex", "05:00 as 23:00", "Musculacao, cardio e funcional",
-        "Sabado", "08:00 as 18:00", "Aulas especiais e treino livre",
+        "Seg a Sex", "05:00 às 23:00", "Musculação, cardio e funcional",
+        "Sábado", "08:00 as 18:00", "Aulas especiais e treino livre",
         "Domingo", "08:00 as 14:00", "Recovery, cardio e mobilidade"
       ]
     );
@@ -424,7 +424,7 @@ function sanitizeUser(user) {
 async function requireUser(request, response) {
   const session = await getSession(request);
   if (!session) {
-    sendJson(response, 401, { error: "Faca login para continuar." });
+    sendJson(response, 401, { error: "Faça login para continuar." });
     return null;
   }
   return session;
@@ -434,8 +434,9 @@ async function requireOwner(request, response) {
   const user = await requireUser(request, response);
   if (!user) return null;
   if (user.role !== "owner") {
-    sendJson(response, 403, { error: "Acesso restrito ao proprietario." });
+    sendJson(response, 403, { error: "Acesso restrito ao proprietário." });
     return null;
   }
   return user;
 }
+

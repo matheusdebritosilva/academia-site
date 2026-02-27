@@ -29,7 +29,7 @@ const revealNodes = document.querySelectorAll("[data-reveal]");
 const authTabs = Array.from(document.querySelectorAll("[data-auth-tab]"));
 
 initialize().catch(() => {
-  authFeedback.textContent = "Nao foi possivel carregar o sistema.";
+  authFeedback.textContent = "Não foi possível carregar o sistema.";
 });
 
 async function initialize() {
@@ -225,7 +225,7 @@ function renderPublicLists() {
       <article class="plan-card ${plan.featured ? "featured" : ""}">
         ${plan.featured ? '<div class="tag">Mais escolhido</div>' : ""}
         <h3>${plan.name}</h3>
-        <p class="price">${plan.price}<span>/mes</span></p>
+        <p class="price">${plan.price}<span>/mês</span></p>
         <p>${plan.description}</p>
         <a class="button ${plan.featured ? "primary" : "secondary"}" href="#contato">Assinar</a>
       </article>
@@ -255,7 +255,7 @@ function renderPublicLists() {
         <span>${schedule.details}</span>
       </article>
     `,
-    "Nenhum horario cadastrado."
+    "Nenhum horário cadastrado."
   );
 }
 
@@ -271,8 +271,8 @@ function renderAdminLists() {
     (plan) => `
       <div class="admin-item">
         <div>
-          <strong>${plan.name}${plan.featured ? " - Destaque" : ""}</strong>
-          <p>${plan.price} - ${plan.description}</p>
+          <strong>${plan.name}${plan.featured ? " · Destaque" : ""}</strong>
+          <p>${plan.price} · ${plan.description}</p>
         </div>
         <button class="button secondary item-delete" type="button" data-type="plan" data-id="${plan.id}">Remover</button>
       </div>
@@ -302,12 +302,12 @@ function renderAdminLists() {
       <div class="admin-item">
         <div>
           <strong>${schedule.day}</strong>
-          <p>${schedule.hours} - ${schedule.details}</p>
+          <p>${schedule.hours} · ${schedule.details}</p>
         </div>
         <button class="button secondary item-delete" type="button" data-type="schedule" data-id="${schedule.id}">Remover</button>
       </div>
     `,
-    "Nenhum horario cadastrado."
+    "Nenhum horário cadastrado."
   );
 
   renderCollection(
@@ -350,12 +350,12 @@ function renderAuthState() {
   adminStatus.textContent = isOwner ? "Conectado" : "Desconectado";
 
   if (isLogged) {
-    userPill.textContent = user.role === "owner" ? "Proprietario" : user.name;
+    userPill.textContent = user.role === "owner" ? "Proprietário" : user.name;
   }
 
   if (user && user.role !== "owner") {
     memberWelcome.textContent = `Bem-vindo, ${user.name}.`;
-    memberDescription.textContent = "Sua conta foi criada com sucesso e ja esta conectada ao sistema da academia.";
+    memberDescription.textContent = "Sua conta foi criada com sucesso e já está conectada ao sistema da academia.";
     memberArea.classList.add("is-visible");
   }
 
@@ -446,7 +446,7 @@ async function apiFetch(url, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || "Erro na requisicao.");
+    throw new Error(data.error || "Erro na requisição.");
   }
   return data;
 }
@@ -458,6 +458,7 @@ function formatDate(value) {
   }
   return date.toLocaleString("pt-BR");
 }
+
 
 
 
